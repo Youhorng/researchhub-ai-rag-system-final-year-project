@@ -1,0 +1,33 @@
+# General
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Environments
+.env
+.venv/
+venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+dist/
+build/
+*.egg-info/
+.coverage
+
+# Node/Frontend
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.next/
+out/
+build/
+dist/
+
+# Docker
+docker-compose.override.yml
