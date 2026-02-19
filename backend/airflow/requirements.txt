@@ -1,0 +1,32 @@
+# Airflow extra dependencies for ResearchHub DAGs
+# 
+# NOTE: Do NOT add apache-airflow or apache-airflow-providers-* here.
+# Airflow and its providers are already installed in the Dockerfile via:
+#   pip install "apache-airflow[postgres]==2.10.3" --constraint <constraint_url>
+# Adding providers here would pull in a newer incompatible Airflow version.
+#
+# Only add libraries that DAGs need to import backend service code:
+
+# HTTP and data handling
+requests>=2.32.3
+httpx>=0.28.1
+python-dateutil>=2.9.0.post0
+
+# Database clients (for DAGs that read/write directly)
+psycopg2-binary>=2.9.10
+redis>=5.0.0
+
+# OpenSearch client (for RAG indexing DAGs)
+opensearch-py>=2.4.0
+
+# Pydantic (for data validation in DAGs)
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+
+# LLM / RAG stack (for embedding DAGs)
+langchain>=0.2.0
+langchain-core>=0.2.0
+langchain-community>=0.2.0
+
+# Observability
+langfuse>=2.0.0

@@ -1,0 +1,9 @@
+# DAGs directory — place your Airflow pipeline DAG files here
+# 
+# Each .py file in this directory is automatically picked up by Airflow.
+# DAGs can import backend service code via the mounted volume:
+#   ./backend/src → /opt/airflow/src  (configured in compose.yml)
+#
+# Example DAGs to create later:
+#   arxiv_pipeline.py     - Weekly ArXiv paper fetch, parse, embed, index
+#   reindex_pipeline.py   - Full re-indexing of all papers

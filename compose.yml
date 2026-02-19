@@ -1,52 +1,428 @@
-# Setup the Docker Compose file 
+# ResearchHub - Docker Compose Infrastructure
+# All secrets come from .env (single source of truth)
+# Run: docker compose up --build -d
+
 services:
-    # 1. Backend Service (FastAPI)
-    api:
+  # ===========================================================================
+  # APPLICATION LAYER
+  # ===========================================================================
 
-    # 2. Frontend Service (React/Vite)
-    frontend:
+  # 1. Backend Service (FastAPI)
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: researchhub-api
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      opensearch:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'python -c "import urllib.request; urllib.request.urlopen(''http://localhost:8000/api/v1/health'')"',
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    env_file:
+      - .env
+    environment:
+      # Override .env localhost values with Docker service names for container networking
+      - OPENSEARCH_HOST=http://opensearch:9200
+      - OPENSEARCH__HOST=http://opensearch:9200
+      - OLLAMA_HOST=http://ollama:11434
+      - POSTGRES_DATABASE_URL=postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      - LANGFUSE__HOST=http://langfuse-web:3000
+      - REDIS__HOST=redis
+    networks:
+      - rag-network
 
-    # Core Infrastructure (DBs, Cache, Search)
-    # 3. Database Service (Postgres)
-    postgres:
+  # 2. Frontend Service (React/Vite → Nginx)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: researchhub-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - api
+    networks:
+      - rag-network
 
-    # 4. Redis Service (Caching)
-    redis:
+  # ===========================================================================
+  # CORE INFRASTRUCTURE (Databases, Cache, Search)
+  # ===========================================================================
 
-    # 5. Openseach Service (Vector Database)
-    opensearch:
+  # 3. PostgreSQL (Main application database)
+  postgres:
+    image: postgres:16-alpine
+    container_name: rag-postgres
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_HOST_AUTH_METHOD=password
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - rag-network
 
-    # 6. Opensearch Dashboard Service 
-    opensearch-dashboards:
+  # 4. Redis (Application cache)
+  redis:
+    image: redis:7-alpine
+    container_name: rag-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - rag-network
 
-    # 7. LLM Service (Ollama)
-    ollama:
+  # 5. OpenSearch (Vector database for RAG)
+  opensearch:
+    image: opensearchproject/opensearch:2.19.0
+    container_name: rag-opensearch
+    environment:
+      - discovery.type=single-node
+      - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
+      - DISABLE_SECURITY_PLUGIN=true
+      - bootstrap.memory_lock=true
+    ports:
+      - "9200:9200"
+      - "9600:9600"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - opensearch_data:/usr/share/opensearch/data
+    healthcheck:
+      test:
+        ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+    networks:
+      - rag-network
 
-    # Pipeline & Observability (Airflow, Langfuse)
-    # Note: Requires ./airflow directory with Dockerfile 
+  # 6. OpenSearch Dashboards (Web UI to inspect vector indices)
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:2.19.0
+    container_name: rag-dashboards
+    ports:
+      - "5601:5601"
+    environment:
+      - OPENSEARCH_HOSTS=http://opensearch:9200
+      - DISABLE_SECURITY_DASHBOARDS_PLUGIN=true
+    depends_on:
+      - opensearch
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5601/api/status || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - rag-network
 
-    # 8. Airflow Service (Pipeline Orchestration)
-    airflow:
+  # 7. Ollama (Local LLM inference)
+  # After starting: docker exec -it rag-ollama ollama pull llama3.2:1b
+  ollama:
+    image: ollama/ollama:0.11.2
+    container_name: rag-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - rag-network
 
-    # Observaility Services
-    # 9. Clickhouse Service 
-    clickhouse:
+  # ===========================================================================
+  # PIPELINE & OBSERVABILITY
+  # ===========================================================================
 
-    # 10. Langfuse Service (Observability)
-    langfuse-worker:
+  # 8. Airflow (Scheduled pipelines: weekly ArXiv fetch, re-indexing)
+  # Note: Lives inside backend/airflow/ — shares Python deps with backend
+  airflow:
+    build:
+      context: ./backend/airflow
+      dockerfile: Dockerfile
+    container_name: rag-airflow
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      # Airflow reads AIRFLOW__* vars natively from .env via env_file above
+      # Override service hostnames for Docker networking
+      - POSTGRES_DATABASE_URL=postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      - OPENSEARCH_HOST=http://opensearch:9200
+      - OPENSEARCH__HOST=http://opensearch:9200
+      - OLLAMA_HOST=http://ollama:11434
+      - REDIS__HOST=redis
+    volumes:
+      - ./backend/airflow/dags:/opt/airflow/dags # Live-edit DAGs without rebuilding
+      - airflow_logs:/opt/airflow/logs
+      - ./backend/airflow/plugins:/opt/airflow/plugins
+      - ./backend/src:/opt/airflow/src # Share backend service code with DAGs
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    networks:
+      - rag-network
 
-    # 11. Langfuse Web Service 
-    langfuse-web:
+  # 9. ClickHouse (Analytics database for Langfuse)
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.8-alpine
+    container_name: rag-clickhouse
+    environment:
+      - CLICKHOUSE_DB=${CLICKHOUSE_DB}
+      - CLICKHOUSE_USER=${CLICKHOUSE_USER}
+      - CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1
+      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD}
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+    networks:
+      - rag-network
 
-    # 12. Langfuse Postgres Service 
-    langfuse-postgres:
+  # 10. Langfuse Worker (Background job processor for LLM traces)
+  langfuse-worker:
+    image: docker.io/langfuse/langfuse-worker:3
+    container_name: rag-langfuse-worker
+    restart: unless-stopped
+    depends_on:
+      langfuse-postgres:
+        condition: service_healthy
+      langfuse-minio:
+        condition: service_healthy
+      langfuse-redis:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+    ports:
+      - "3030:3030"
+    environment:
+      DATABASE_URL: ${LANGFUSE_POSTGRES_URL}
+      SALT: ${LANGFUSE__SALT}
+      ENCRYPTION_KEY: ${LANGFUSE__ENCRYPTION_KEY}
+      TELEMETRY_ENABLED: "false"
+      LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: "true"
+      CLICKHOUSE_MIGRATION_URL: clickhouse://clickhouse:9000
+      CLICKHOUSE_URL: http://clickhouse:8123
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      CLICKHOUSE_CLUSTER_ENABLED: "false"
+      LANGFUSE_USE_AZURE_BLOB: "false"
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+      LANGFUSE_S3_EVENT_UPLOAD_REGION: auto
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: ${LANGFUSE__MINIO_ACCESS_KEY}
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: ${LANGFUSE__MINIO_SECRET_KEY}
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://langfuse-minio:9000
+      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+      LANGFUSE_S3_EVENT_UPLOAD_PREFIX: events/
+      LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: langfuse
+      LANGFUSE_S3_MEDIA_UPLOAD_REGION: auto
+      LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: ${LANGFUSE__MINIO_ACCESS_KEY}
+      LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: ${LANGFUSE__MINIO_SECRET_KEY}
+      LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://langfuse-minio:9000
+      LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
+      LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: media/
+      REDIS_HOST: langfuse-redis
+      REDIS_PORT: 6379
+      REDIS_AUTH: ${LANGFUSE__REDIS_PASSWORD}
+      REDIS_TLS_ENABLED: "false"
+    networks:
+      - rag-network
 
-    # 13. Langfuse Redis Service 
-    langfuse-redis:
+  # 11. Langfuse Web (Observability UI — access at http://localhost:3001)
+  langfuse-web:
+    image: docker.io/langfuse/langfuse:3
+    container_name: rag-langfuse-web
+    restart: unless-stopped
+    depends_on:
+      langfuse-postgres:
+        condition: service_healthy
+      langfuse-minio:
+        condition: service_healthy
+      langfuse-redis:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+    ports:
+      - "3001:3000"
+    environment:
+      NEXTAUTH_URL: http://localhost:3001
+      NEXTAUTH_SECRET: ${LANGFUSE__NEXTAUTH_SECRET}
+      DATABASE_URL: ${LANGFUSE_POSTGRES_URL}
+      SALT: ${LANGFUSE__SALT}
+      ENCRYPTION_KEY: ${LANGFUSE__ENCRYPTION_KEY}
+      TELEMETRY_ENABLED: "false"
+      LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: "true"
+      CLICKHOUSE_MIGRATION_URL: clickhouse://clickhouse:9000
+      CLICKHOUSE_URL: http://clickhouse:8123
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      CLICKHOUSE_CLUSTER_ENABLED: "false"
+      LANGFUSE_USE_AZURE_BLOB: "false"
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+      LANGFUSE_S3_EVENT_UPLOAD_REGION: auto
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: ${LANGFUSE__MINIO_ACCESS_KEY}
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: ${LANGFUSE__MINIO_SECRET_KEY}
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://langfuse-minio:9000
+      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+      LANGFUSE_S3_EVENT_UPLOAD_PREFIX: events/
+      LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: langfuse
+      LANGFUSE_S3_MEDIA_UPLOAD_REGION: auto
+      LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: ${LANGFUSE__MINIO_ACCESS_KEY}
+      LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: ${LANGFUSE__MINIO_SECRET_KEY}
+      LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://langfuse-minio:9000
+      LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
+      LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: media/
+      REDIS_HOST: langfuse-redis
+      REDIS_PORT: 6379
+      REDIS_AUTH: ${LANGFUSE__REDIS_PASSWORD}
+      REDIS_TLS_ENABLED: "false"
+      # Auto-create admin account on first run
+      LANGFUSE_INIT_ORG_NAME: "ResearchHub"
+      LANGFUSE_INIT_PROJECT_NAME: "RAG Pipeline"
+      LANGFUSE_INIT_USER_EMAIL: "admin@example.com"
+      LANGFUSE_INIT_USER_NAME: "Admin User"
+      LANGFUSE_INIT_USER_PASSWORD: "admin123"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -f http://localhost:3000/api/public/health || exit 1",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - rag-network
 
-    # 14. Langfuse MinIO Service 
-    langfuse-minio:
+  # 12. Langfuse Postgres (Dedicated DB for Langfuse — separate from app DB)
+  langfuse-postgres:
+    image: postgres:17
+    container_name: rag-langfuse-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${LANGFUSE_POSTGRES_USER}
+      - POSTGRES_PASSWORD=${LANGFUSE_POSTGRES_PASSWORD}
+      - POSTGRES_DB=${LANGFUSE_POSTGRES_DB}
+      - POSTGRES_HOST_AUTH_METHOD=password
+      - TZ=UTC
+      - PGTZ=UTC
+    ports:
+      - "5433:5432"
+    volumes:
+      - langfuse_v3_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${LANGFUSE_POSTGRES_USER} -d ${LANGFUSE_POSTGRES_DB}",
+        ]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+    networks:
+      - rag-network
 
+  # 13. Langfuse Redis (Dedicated Redis for Langfuse job queue)
+  langfuse-redis:
+    image: docker.io/redis:7
+    container_name: rag-langfuse-redis
+    restart: unless-stopped
+    command: --requirepass ${LANGFUSE__REDIS_PASSWORD}
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${LANGFUSE__REDIS_PASSWORD}", "ping"]
+      interval: 3s
+      timeout: 10s
+      retries: 10
+    networks:
+      - rag-network
+
+  # 14. Langfuse MinIO (S3-compatible storage for LLM trace files)
+  langfuse-minio:
+    image: docker.io/minio/minio
+    container_name: rag-langfuse-minio
+    restart: unless-stopped
+    entrypoint: sh
+    command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data'
+    environment:
+      - MINIO_ROOT_USER=${LANGFUSE__MINIO_ACCESS_KEY}
+      - MINIO_ROOT_PASSWORD=${LANGFUSE__MINIO_SECRET_KEY}
+    ports:
+      - "9090:9000"
+      - "9091:9001"
+    volumes:
+      - langfuse_v3_minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    networks:
+      - rag-network
+
+# =============================================================================
+# VOLUMES (persistent data — survives container restarts)
+# WARNING: `docker compose down -v` deletes ALL data
+# =============================================================================
 volumes:
   postgres_data:
   opensearch_data:
