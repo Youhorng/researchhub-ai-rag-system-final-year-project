@@ -12,8 +12,8 @@ PostgreSQL via SQLAlchemy + Alembic. PDF uploads stored in MinIO.
 erDiagram
     USER {
         uuid id PK
-        string clerk_id UK "from Clerk JWT"
-        string email UK
+        string clerk_id "unique, from Clerk JWT"
+        string email "unique"
         string display_name
         string avatar_url
         timestamp created_at
@@ -22,7 +22,7 @@ erDiagram
 
     USER_PREFERENCES {
         uuid id PK
-        uuid user_id FK UK
+        uuid user_id FK "unique"
         string theme "light | dark | system"
         string default_llm_model
         bool email_notifications
@@ -36,8 +36,8 @@ erDiagram
         string name
         text description
         text research_goal "from creation form"
-        string[] initial_keywords "from creation form"
-        string[] arxiv_categories "cs.AI, cs.LG, etc."
+        stringArray initial_keywords "from creation form"
+        stringArray arxiv_categories "cs.AI, cs.LG, etc."
         int year_from "paper date filter"
         int year_to "paper date filter"
         string status "active | archived"
@@ -60,11 +60,11 @@ erDiagram
 
     PAPER {
         uuid id PK
-        string arxiv_id UK
+        string arxiv_id "unique"
         string title
-        string[] authors
+        stringArray authors
         text abstract
-        string[] categories
+        stringArray categories
         date published_at
         string pdf_url
         bool is_indexed "in OpenSearch?"

@@ -178,7 +178,7 @@ Each `uv add` command:
 
 ### 4.2 The Full Dependency List for ResearchHub
 
-Here is the current [pyproject.toml](file:///Users/youhorng/Desktop/final-year-project/production-agentic-rag-course/pyproject.toml) breakdown:
+Here is the current [pyproject.toml](file:///Users/youhorng/Desktop/final-year-project/researchhub-ai-rag-system-final-year-project/backend/pyproject.toml) breakdown:
 
 #### Production Dependencies
 
@@ -366,7 +366,7 @@ OPENSEARCH__HOST=http://opensearch:9200
     double underscore = nested attribute
 ```
 
-Maps to `Settings().opensearch.host` in Python, defined in [config.py](file:///Users/youhorng/Desktop/final-year-project/production-agentic-rag-course/src/config.py):
+Maps to `Settings().opensearch.host` in Python, defined in [config.py](file:///Users/youhorng/Desktop/final-year-project/researchhub-ai-rag-system-final-year-project/backend/src/config.py):
 
 ```python
 class OpenSearchSettings(BaseConfigSettings):
@@ -383,7 +383,7 @@ Variables **without** double underscore (like `JINA_API_KEY`) map to top-level `
 
 ## 6. Understanding the Dockerfile
 
-The [Dockerfile](file:///Users/youhorng/Desktop/final-year-project/production-agentic-rag-course/Dockerfile) uses a **multi-stage build** to keep the final image small and fast.
+The [Dockerfile](file:///Users/youhorng/Desktop/final-year-project/researchhub-ai-rag-system-final-year-project/backend/Dockerfile) uses a **multi-stage build** to keep the final image small and fast.
 
 ### Stage 1: `base` — Install Dependencies
 
@@ -455,7 +455,7 @@ docker images researchhub-api
 
 ## 7. Understanding Docker Compose
 
-The [compose.yml](file:///Users/youhorng/Desktop/final-year-project/production-agentic-rag-course/compose.yml) defines a **14-service architecture**. Here's a visual map:
+The [compose.yml](file:///Users/youhorng/Desktop/final-year-project/researchhub-ai-rag-system-final-year-project/compose.yml) defines a **14-service architecture**. Here's a visual map:
 
 ```mermaid
 graph TB
@@ -660,7 +660,7 @@ volumes:
 
 ## 8. The Makefile — Your Command Center
 
-The [Makefile](file:///Users/youhorng/Desktop/final-year-project/production-agentic-rag-course/Makefile) wraps common commands:
+The [Makefile](file:///Users/youhorng/Desktop/final-year-project/researchhub-ai-rag-system-final-year-project/Makefile) wraps common commands:
 
 | Command        | What It Does                                              |
 | -------------- | --------------------------------------------------------- |

@@ -10,8 +10,12 @@
 *.njsproj
 *.sln
 
-# Environments
+# Environments — secret files (never commit)
 .env
+.env.production
+.env.local
+# .env.example → safe to commit (no real secrets)
+# .env.test    → safe to commit (no real secrets)
 .venv/
 venv/
 env/
