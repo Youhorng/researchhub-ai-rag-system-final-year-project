@@ -10,11 +10,11 @@ Every service has a specific job. Nothing overlaps.
 ┌─────────────────────────────────────────────────────────────────────┐
 │                          USER (Browser)                             │
 │                    React + TypeScript + Vite                        │
-│         Auth: Clerk  ←→  API: FastAPI  ←→  Chat: Ollama            │
+│         Auth: Clerk  ←→  API: FastAPI  ←→  Chat: Ollama             │
 └──────────────────────────────┬──────────────────────────────────────┘
                                │ HTTP / REST
 ┌──────────────────────────────▼──────────────────────────────────────┐
-│                      FastAPI Backend                                 │
+│                      FastAPI Backend                                │
 │          Routers → Services → Repositories → Models                 │
 └───┬──────────┬──────────┬──────────┬──────────┬──────────┬──────────┘
     │          │          │          │          │          │

@@ -35,6 +35,15 @@ ENV PATH="/app/.venv/bin:$PATH"
 # Copy the source code
 COPY src ./src
 
+# Copy Alembic migration files and config so we can run migrations inside the container.
+# alembic.ini — Alembic configuration (logging, script location)
+# alembic/    — env.py, versions/, and migration scripts
+COPY alembic.ini ./alembic.ini
+COPY alembic ./alembic
+
+# Copy the app entrypoint
+COPY main.py ./main.py
+
 # PYTHONUNBUFFERED=1 to disable output buffering
 ENV PYTHONUNBUFFERED=1
 ARG VERSION=0.1.0

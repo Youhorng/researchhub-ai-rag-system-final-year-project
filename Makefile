@@ -1,4 +1,5 @@
-.PHONY: help start stop restart status logs health setup format lint test test-cov clean
+.PHONY: help start stop restart status logs health setup format lint test test-cov clean \
+        db-migrate db-upgrade db-downgrade db-history
 
 # Default target
 help: ## Show this help message
@@ -57,7 +58,24 @@ test-cov: ## Run tests with HTML coverage report
 	uv run pytest --cov=src --cov-report=html
 	@echo "Coverage report: backend/htmlcov/index.html"
 
+# ─── Database Migrations ─────────────────────────────────────────────────────
+# All commands run inside the running 'api' container so they use the
+# Docker network to reach PostgreSQL (postgres:5432) automatically.
+
+db-migrate: ## Generate a new migration (usage: make db-migrate msg="your message")
+	docker compose exec api alembic revision --autogenerate -m "$(msg)"
+
+db-upgrade: ## Apply all pending migrations (alembic upgrade head)
+	docker compose exec api alembic upgrade head
+
+db-downgrade: ## Roll back the last migration
+	docker compose exec api alembic downgrade -1
+
+db-history: ## Show migration history
+	docker compose exec api alembic history --verbose
+
 # ─── Cleanup ─────────────────────────────────────────────────────────────────
+
 
 clean: ## ⚠️  Stop services and delete ALL data (volumes included)
 	@echo "⚠️  This will DELETE all database data, OpenSearch indices, and Ollama models."

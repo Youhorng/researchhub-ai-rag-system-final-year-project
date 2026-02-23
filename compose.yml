@@ -76,6 +76,9 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      # Init script: runs on first startup to create airflow_db alongside rag_db.
+      # Only runs when the postgres_data volume is empty (fresh install).
+      - ./scripts/01_create_databases.sh:/docker-entrypoint-initdb.d/01_create_databases.sh:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
@@ -191,8 +194,9 @@ services:
     environment:
       # Airflow reads AIRFLOW__* vars natively from .env via env_file above
       # Override service hostnames for Docker networking
-      - POSTGRES_DATABASE_URL=postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      # Airflow uses its own dedicated database — keeps Airflow internal tables
+      # completely separate from our 10 app tables in rag_db.
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/airflow_db
       - OPENSEARCH_HOST=http://opensearch:9200
       - OPENSEARCH__HOST=http://opensearch:9200
       - OLLAMA_HOST=http://ollama:11434
