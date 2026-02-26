@@ -24,7 +24,6 @@ erDiagram
         string theme "light | dark | system"
         string default_llm_model
         bool email_notifications
-        json extra
         timestamp updated_at
     }
 
@@ -116,8 +115,8 @@ erDiagram
         uuid session_id FK
         string role "user | assistant"
         text content
-        json cited_sources
-        json metadata "model, latency_ms, tokens"
+        jsonb cited_sources
+        jsonb metadata "model, latency_ms, tokens — stored as metadata_ in Python"
         timestamp created_at
     }
 
