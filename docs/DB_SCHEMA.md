@@ -20,7 +20,7 @@ erDiagram
 
     USER_PREFERENCES {
         uuid id PK
-        uuid user_id FK UK
+        uuid user_id FK "unique"
         string theme "light | dark | system"
         string default_llm_model
         bool email_notifications
@@ -33,8 +33,8 @@ erDiagram
         string name
         text description
         text research_goal "free text - also embedded for semantic search"
-        string[] arxiv_categories "cs.AI, cs.LG, cs.CL, etc."
-        string[] initial_keywords
+        string arxiv_categories "array - cs.AI, cs.LG, cs.CL, etc."
+        string initial_keywords "array"
         int year_from
         int year_to
         string status "active | archived"
@@ -49,8 +49,8 @@ erDiagram
         uuid id PK
         uuid project_id FK
         string name
-        string[] arxiv_categories
-        string[] keywords
+        string arxiv_categories "array"
+        string keywords "array"
         int year_from
         int year_to
         string last_query "saved OpenSearch query string"
@@ -63,9 +63,9 @@ erDiagram
         uuid id PK
         string arxiv_id UK
         string title
-        string[] authors
+        string authors "array"
         text abstract
-        string[] categories
+        string categories "array"
         date published_at
         string pdf_url
         bool metadata_indexed "abstract vector in arxiv-metadata index"
@@ -116,7 +116,7 @@ erDiagram
         string role "user | assistant"
         text content
         jsonb cited_sources
-        jsonb metadata "model, latency_ms, tokens — stored as metadata_ in Python"
+        jsonb metadata "model, latency_ms, tokens - stored as metadata_ in Python"
         timestamp created_at
     }
 
