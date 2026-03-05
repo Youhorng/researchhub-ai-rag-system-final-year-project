@@ -7,10 +7,10 @@
 # Order matters for relationships — import models before those that reference them.
 from src.models.base import Base, TimestampMixin
 from src.models.user import User, UserPreferences
-from src.models.project import Project, ProjectTopic
+from src.models.project import Project, ProjectTopic, SyncEvent
 from src.models.paper import Paper, ProjectPaper
 from src.models.document import Document
-from src.models.chat import ChatSession, ChatMessage, SyncEvent
+from src.models.chat import ChatSession, ChatMessage
 
 __all__ = [
     "Base",

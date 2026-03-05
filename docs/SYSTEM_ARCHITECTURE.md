@@ -70,16 +70,28 @@ Airflow: arxiv_daily_update (nightly)
 User fills Project Creation Wizard (5 steps)
         │
         ▼
-Step 1-4 form data saved to projects table
+Step 1: research_goal (free text) entered
+        │
+        ▼
+Ollama: extract 8-12 candidate keywords from research_goal
+        │
+        ▼
+Step 2: User reviews keyword chips → selects / deselects
+        │
+        ▼
+Step 3-4: arxiv_categories + year_from/year_to selected
+        │
+        ▼
+Form data saved to projects table
         │
         ├── research_goal (text) → Jina AI → 1024-dim query vector
-        ├── initial_keywords    → BM25 query on title + abstract
+        ├── selected_keywords   → BM25 query on title + abstract
         ├── arxiv_categories    → category filter (cs.AI, cs.LG, etc.)
         └── year_from/year_to   → date range filter
         │
         ▼
 OpenSearch: arxiv-metadata index (hybrid search)
-  ├── BM25   on title + abstract using keywords
+  ├── BM25   on title + abstract using selected keywords
   ├── KNN    on abstract_vector using research_goal vector
   └── RRF    combines both scores
         │
@@ -206,17 +218,18 @@ User query enters LangGraph StateGraph
 
 ### Feature 3 — Paper Discovery (Starter Pack)
 
-**Services:** FastAPI + OpenSearch (`arxiv-metadata`) + Jina AI + PostgreSQL
+**Services:** FastAPI + OpenSearch (`arxiv-metadata`) + Jina AI + Ollama + PostgreSQL
 
-| Sub-feature                  | What it does                                                                             |
-| ---------------------------- | ---------------------------------------------------------------------------------------- |
-| Embed research goal          | Jina AI embeds the research_goal text → 1024-dim query vector                            |
-| Hybrid search                | Query `arxiv-metadata` OpenSearch index — BM25 (keywords) + KNN (semantic) + RRF ranking |
-| Filter by category + date    | Apply arxiv_categories and year_from/year_to as hard filters                             |
-| Deduplicate                  | Skip papers already in this project's `project_papers`                                   |
-| Suggest papers               | Top-N results → insert into `project_papers` with `status=suggested`                     |
-| Accept / Reject / Upload PDF | Step 5 is mandatory — `PATCH` status + optional `POST /documents` for PDF upload         |
-| Trigger full-text indexing   | On accept → background task: PDF → parse → chunk → embed → index in `arxiv-chunks`       |
+| Sub-feature                  | What it does                                                                                          |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------- |
+| LLM keyword extraction       | Ollama extracts 8-12 candidate keywords from `research_goal` text → user selects/deselects as chips   |
+| Embed research goal          | Jina AI embeds the `research_goal` text → 1024-dim query vector                                       |
+| Hybrid search                | Query `arxiv-metadata` OpenSearch index — BM25 (selected keywords) + KNN (semantic vector) + RRF rank |
+| Filter by category + date    | Apply `arxiv_categories` and `year_from`/`year_to` as hard filters                                    |
+| Deduplicate                  | Skip papers already in this project's `project_papers`                                                |
+| Suggest papers               | Top-N results → insert into `project_papers` with `status=suggested`                                  |
+| Accept / Reject / Upload PDF | Step 5 is mandatory — `PATCH` status + optional `POST /documents` for PDF upload                      |
+| Trigger full-text indexing   | On accept → background task: PDF → parse → chunk → embed → index in `arxiv-chunks`                    |
 
 ---
 

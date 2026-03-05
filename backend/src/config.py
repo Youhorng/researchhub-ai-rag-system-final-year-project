@@ -117,7 +117,7 @@ class Settings(BaseSettings):
     opensearch_user: str = "admin"
     opensearch_password: str = "admin"
 
-    # pydantic-settings reads LANGFUSE__HOST and maps it to langfuse.host, etc.
+    # pydantic-settings 
     langfuse: LangfuseSettings = LangfuseSettings()
     redis: RedisSettings = RedisSettings()
     chunking: ChunkingSettings = ChunkingSettings()

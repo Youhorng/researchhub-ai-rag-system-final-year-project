@@ -1,32 +1,41 @@
+import logging
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+from src.config import get_settings
+from src.database import check_db_connection
+from src.exceptions import exception_handlers
+from src.middlewares import setup_middlewares
 
+
+# Configure settings and logging
+settings = get_settings()
+logger = logging.getLogger(__name__)
+
+# Define the context manager for the application
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("Starting %s [%s]", settings.app_name, settings.environment)
+    db_ok = check_db_connection()
+    if db_ok:
+        logger.info("PostgreSQL connected ✓")
+    else:
+        logger.error("PostgreSQL connection FAILED — check DB config")
+    yield
+    logger.info("Shutting down %s", settings.app_name)
+
+
+# Create the FastAPI app
 app = FastAPI(
-    title="ResearchHub API",
-    description="AI-powered research paper discovery and RAG system",
+    title=settings.app_name,
     version="0.1.0",
-)
-
-# Allow frontend (localhost:3000) to call the API
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    debug=settings.debug,
+    lifespan=lifespan,
 )
 
 
-@app.get("/api/v1/health")
-async def health_check():
-    """Health check endpoint — used by Docker healthcheck and monitoring."""
-    return {
-        "status": "ok",
-        "service": "researchhub-api",
-        "version": "0.1.0",
-    }
+# Setup the middlewares
+setup_middlewares(app)
 
-
-@app.get("/")
-async def root():
-    return {"message": "ResearchHub API is running. Visit /docs for API documentation."}
+# Add exception handlers
+for exc_class, handler in exception_handlers:
+    app.add_exception_handler(exc_class, handler)

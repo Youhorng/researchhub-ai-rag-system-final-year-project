@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import DateTime, ForeignKey, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.models.base import Base
@@ -103,50 +103,3 @@ class ChatMessage(Base):
 
     session: Mapped["ChatSession"] = relationship(back_populates="messages")
 
-
-# Audit trail for every topic sync and drift detection run.
-# Every time Airflow or a user triggers a sync, a row is added here.
-# This lets you answer: "When did this project last sync? What changed?"
-class SyncEvent(Base):
-    __tablename__ = "sync_events"
-
-    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-
-    # Which project this sync belongs to.
-    project_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("projects.id"), nullable=False, index=True
-    )
-
-    # Which specific topic was synced (null if it's a project-level operation).
-    topic_id: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("project_topics.id"), nullable=True
-    )
-
-    # Type of event:
-    #   "sync"           new papers were fetched for a topic
-    #   "clean"          low-relevance papers were flagged or removed
-    #   "drift_detected" Airflow found papers drifting from topic
-    event_type: Mapped[str] = mapped_column(String(50), nullable=False)
-
-    # How many new papers were added to the project in this sync run.
-    papers_added: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-
-    # How many papers were removed/rejected during a clean operation.
-    papers_removed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-
-    # Extra details about this sync — error messages, stats, paper IDs added, etc.
-    # Flexible JSONB field so we can store any shape of detail without schema changes.
-    details: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
-
-    # What triggered this sync:
-    #   "user"      user clicked "Sync Now" in the UI
-    #   "scheduler" Airflow ran the daily sync DAG
-    triggered_by: Mapped[str | None] = mapped_column(String(50), nullable=True)
-
-    # When the sync ran. No updated_at — sync events are immutable records.
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
-
-    project: Mapped["Project"] = relationship(back_populates="sync_events")
-    topic: Mapped["ProjectTopic | None"] = relationship(back_populates="sync_events")
