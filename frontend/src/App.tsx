@@ -1,34 +1,60 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { Routes, Route } from 'react-router-dom'
+import { SignIn, SignUp, useAuth } from '@clerk/react'
 
-function App() {
-  const [count, setCount] = useState(0)
+function Home() {
+  const { isSignedIn, getToken } = useAuth()
+
+  const handleCopyToken = async () => {
+    const token = await getToken()
+    if (token) {
+      await navigator.clipboard.writeText(token)
+      alert('JWT token copied to clipboard! Use it in Postman as:\nAuthorization: Bearer <token>')
+    }
+  }
+
+  if (!isSignedIn) {
+    return (
+      <div style={{ textAlign: 'center', padding: '2rem' }}>
+        <h1>ResearchHub</h1>
+        <p>Please sign in or sign up to continue.</p>
+        <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+          <a href="/sign-in">Sign In</a>
+          <a href="/sign-up">Sign Up</a>
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
+    <div style={{ textAlign: 'center', padding: '2rem' }}>
+      <h1>ResearchHub</h1>
+      <p>You are signed in!</p>
+      <button onClick={handleCopyToken} style={{ padding: '0.5rem 1rem', cursor: 'pointer' }}>
+        Copy JWT Token (for Postman)
+      </button>
+      <p style={{ marginTop: '1rem', fontSize: '0.85rem', color: '#666' }}>
+        Use the token in Postman: <code>GET http://localhost:8000/api/v1/me</code><br />
+        Header: <code>Authorization: Bearer &lt;token&gt;</code>
       </p>
-    </>
+    </div>
+  )
+}
+
+function App() {
+  return (
+    <Routes>
+      <Route path="/" element={<Home />} />
+      <Route path="/sign-in/*" element={
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}>
+          <SignIn routing="path" path="/sign-in" signUpUrl="/sign-up" forceRedirectUrl="/" />
+        </div>
+      } />
+      <Route path="/sign-up/*" element={
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}>
+          <SignUp routing="path" path="/sign-up" signInUrl="/sign-in" forceRedirectUrl="/" />
+        </div>
+      } />
+    </Routes>
   )
 }
 

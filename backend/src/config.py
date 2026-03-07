@@ -94,6 +94,7 @@ class Settings(BaseSettings):
 
     clerk_secret_key: str = ""         # CLERK_SECRET_KEY
     clerk_publishable_key: str = ""    # CLERK_PUBLISHABLE_KEY
+    clerk_jwks_url: str = ""           # CLERK_JWKS_URL
 
     # OLLAMA_HOST uses single underscore — flat var, not nested.
     ollama_host: str = "http://ollama:11434"   # maps to OLLAMA_HOST

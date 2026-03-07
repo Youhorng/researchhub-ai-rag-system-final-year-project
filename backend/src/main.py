@@ -2,9 +2,12 @@ import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from src.config import get_settings
-from src.database import check_db_connection
+from src.database import check_db_connection, engine
 from src.exceptions import exception_handlers
 from src.middlewares import setup_middlewares
+
+from src.routers.auth import router as auth_router
+from src.routers.health import router as health_router
 
 
 # Configure settings and logging
@@ -22,6 +25,8 @@ async def lifespan(app: FastAPI):
         logger.error("PostgreSQL connection FAILED — check DB config")
     yield
     logger.info("Shutting down %s", settings.app_name)
+    engine.dispose()
+    logger.info("PostgreSQL connection closed ✗")
 
 
 # Create the FastAPI app
@@ -39,3 +44,7 @@ setup_middlewares(app)
 # Add exception handlers
 for exc_class, handler in exception_handlers:
     app.add_exception_handler(exc_class, handler)
+
+# Mount router
+app.include_router(auth_router)
+app.include_router(health_router)

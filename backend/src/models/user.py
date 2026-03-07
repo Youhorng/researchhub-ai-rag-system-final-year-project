@@ -23,8 +23,10 @@ class User(Base, TimestampMixin):
     )
 
     # Email and display_name are copied from the Clerk JWT payload on first login.
-    email: Mapped[str] = mapped_column(
-        String(255), unique=True, nullable=False, index=True
+    # nullable=True so multiple users can exist before their email claim is populated.
+    # PostgreSQL allows multiple NULLs in a unique column.
+    email: Mapped[str | None] = mapped_column(
+        String(255), unique=True, nullable=True, index=True
     )
     display_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
