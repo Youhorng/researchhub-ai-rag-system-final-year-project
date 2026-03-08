@@ -8,6 +8,7 @@ from src.middlewares import setup_middlewares
 
 from src.routers.auth import router as auth_router
 from src.routers.health import router as health_router
+from src.routers.projects import router as projects_router
 
 
 # Configure settings and logging
@@ -48,3 +49,4 @@ for exc_class, handler in exception_handlers:
 # Mount router
 app.include_router(auth_router)
 app.include_router(health_router)
+app.include_router(projects_router)
