@@ -77,6 +77,7 @@ pipeline {
                     cd ${APP_DIR}
 
                     echo '=== Pulling latest code ==='
+                    git config --global --add safe.directory ${APP_DIR}
                     git pull origin main
 
                     echo '=== Saving current images as :rollback ==='
