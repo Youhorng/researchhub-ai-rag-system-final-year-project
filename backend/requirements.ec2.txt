@@ -1,15 +1,5 @@
 # ResearchHub Backend — EC2 Minimal Requirements (Phase 1 + 2 only)
-#
-# Excludes heavy ML/AI packages not needed until Phase 3+:
-#   ✗ docling          — PDF parsing (pulls in torch + opencv + nvidia = ~3GB)
-#   ✗ sentence-transformers — embeddings (pulls in torch = ~1GB)
-#   ✗ gradio           — ML UI framework
-#   ✗ langchain*       — LLM chains (Phase 4+)
-#   ✗ langgraph        — LLM graph (Phase 4+)
-#   ✗ langchain-ollama — Ollama LLM (Phase 4+)
-#   ✗ opensearch-py    — vector DB (Phase 3+)
-#
-# Included (Phase 1+2 API only):
+# Absolute minimum — no ML packages, no heavy extras
 fastapi[standard]>=0.115.12
 uvicorn>=0.34.0
 pydantic>=2.11.3
@@ -19,8 +9,6 @@ psycopg2-binary>=2.9.10
 alembic>=1.13.3
 httpx>=0.28.1
 redis>=6.4.0
-python-jose[cryptography]>=3.3.0
+python-jose>=3.3.0
 requests>=2.32.3
 python-dateutil>=2.9.0.post0
-langfuse>=3.0.0
-python-telegram-bot>=21.0,<22.0
