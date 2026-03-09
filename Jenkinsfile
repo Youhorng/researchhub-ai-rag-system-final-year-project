@@ -43,7 +43,6 @@ pipeline {
             steps {
                 dir('backend') {
                     sh '''
-                        pip install ruff --quiet
                         echo "Running ruff linter..."
                         ruff check src/
                     '''
@@ -61,7 +60,6 @@ pipeline {
             steps {
                 dir('backend') {
                     sh '''
-                        pip install uv --quiet
                         uv sync --quiet
                         echo "Running pytest..."
                         uv run pytest tests/ -v --tb=short || true
