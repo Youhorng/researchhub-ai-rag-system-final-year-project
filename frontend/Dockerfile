@@ -32,8 +32,8 @@ FROM nginx:alpine
 # Copy the build output from the builder stage to Nginx's web root
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# (Optional) Copy custom nginx config if we need to handle React Router paths
-# COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Copy custom nginx config to handle React Router paths
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # Expose the port (documentation only)
 EXPOSE 80
