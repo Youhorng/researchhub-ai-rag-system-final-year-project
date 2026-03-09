@@ -71,7 +71,7 @@ services:
   api:
     build:
       context: ./backend
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.ec2
     container_name: researchhub-api
     ports:
       - "8000:8000"
