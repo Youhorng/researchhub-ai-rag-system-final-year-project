@@ -5,12 +5,12 @@
 // which has docker group access and /home/ubuntu permission.
 //
 // Stages:
-//   1. Checkout  — clone repo on Jenkins agent
+//   1. Checkout  — pull latest code from GitHub
 //   2. Lint      — ruff static analysis
 //   3. Test      — pytest (placeholder until tests exist)
 //   4. Build     — git pull + docker compose build (old containers untouched)
 //   5. Validate  — health-check new image in isolation (no port conflict)
-//   6. Deploy    — swap containers + post-deploy check + auto-rollback on fail
+//   6. Deploy    — swap containers + smoke test + auto-rollback on fail
 
 pipeline {
     agent any
@@ -23,6 +23,7 @@ pipeline {
     options {
         buildDiscarder(logRotator(numToKeepStr: '10'))
         timeout(time: 30, unit: 'MINUTES')
+        disableConcurrentBuilds()   // prevent "waiting for executor" queue pile-up
     }
 
     stages {
@@ -51,7 +52,7 @@ pipeline {
         }
 
         // ── Stage 3: Test ─────────────────────────────────────────────────────
-        // Passes with "no tests collected" until pytest tests are written.
+        // || true: passes even with empty test suite until tests are written.
         stage('Test') {
             steps {
                 dir('backend') {
@@ -68,8 +69,8 @@ pipeline {
         }
 
         // ── Stage 4: Build ────────────────────────────────────────────────────
-        // git pull + tag current image as rollback + build new image.
-        // Old containers keep serving traffic throughout this stage.
+        // git pull + tag current image as :rollback + build new image.
+        // Old containers keep serving traffic throughout this entire stage.
         stage('Build') {
             steps {
                 sh """
@@ -88,7 +89,7 @@ pipeline {
                     docker tag researchhub-frontend:latest researchhub-frontend:rollback 2>/dev/null || true
 
                     echo '=== Building new images (old containers still running) ==='
-                    docker compose -f ${COMPOSE_FILE} build --no-cache
+                    docker compose -f ${COMPOSE_FILE} build
 
                     echo '=== Build complete - old containers still live ==='
                 """
@@ -101,8 +102,8 @@ pipeline {
         }
 
         // ── Stage 5: Validate ─────────────────────────────────────────────────
-        // Runs new image in an isolated throwaway container (no port binding).
-        // Verifies the image can start and import correctly.
+        // Runs new image in throwaway container (no port binding).
+        // Verifies the image starts and imports correctly.
         // Old production containers are NOT touched.
         stage('Validate') {
             steps {
@@ -145,9 +146,18 @@ pipeline {
                     echo '=== Running DB migrations ==='
                     docker compose -f ${COMPOSE_FILE} exec -T api alembic upgrade head
 
-                    echo '=== Post-deploy smoke test ==='
+                    echo '=== Post-deploy smoke test (localhost) ==='
                     curl -f http://localhost:8000/api/v1/health
-                    curl -f http://${EC2_PUBLIC_IP}:8000/api/v1/health
+
+                    echo '=== Post-deploy smoke test (EC2 public IP) ==='
+                    EC2_IP=\$(grep '^EC2_PUBLIC_IP=' .env | cut -d= -f2 | tr -d '\\r')
+                    if [ -n "\$EC2_IP" ]; then
+                        curl -f http://\$EC2_IP:8000/api/v1/health
+                        echo "=== EC2 public (\$EC2_IP:8000) reachable ==="
+                    else
+                        echo "=== EC2_PUBLIC_IP not set in .env — skipping external check ==="
+                    fi
+
                     echo '=== Deploy complete - new version is live ==='
                 """
             }
