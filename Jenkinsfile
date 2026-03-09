@@ -80,6 +80,9 @@ pipeline {
                     git config --global --add safe.directory ${APP_DIR}
                     git pull origin main
 
+                    echo '=== Cleaning dangling images to free disk space ==='
+                    docker image prune -f
+
                     echo '=== Saving current images as :rollback ==='
                     docker tag researchhub-api:latest researchhub-api:rollback 2>/dev/null || true
                     docker tag researchhub-frontend:latest researchhub-frontend:rollback 2>/dev/null || true
