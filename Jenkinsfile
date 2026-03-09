@@ -143,7 +143,7 @@ pipeline {
                     sleep 15
 
                     echo '=== Running DB migrations ==='
-                    docker compose -f ${COMPOSE_FILE} exec -T api uv run alembic upgrade head
+                    docker compose -f ${COMPOSE_FILE} exec -T api alembic upgrade head
 
                     echo '=== Post-deploy smoke test ==='
                     curl -f http://localhost:8000/api/v1/health
