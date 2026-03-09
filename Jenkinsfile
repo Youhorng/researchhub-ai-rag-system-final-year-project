@@ -147,6 +147,7 @@ pipeline {
 
                     echo '=== Post-deploy smoke test ==='
                     curl -f http://localhost:8000/api/v1/health
+                    curl -f http://${EC2_PUBLIC_IP}:8000/api/v1/health
                     echo '=== Deploy complete - new version is live ==='
                 """
             }
