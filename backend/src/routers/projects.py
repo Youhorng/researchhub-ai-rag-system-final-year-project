@@ -1,17 +1,16 @@
 import logging
 import uuid
-from fastapi import APIRouter
 
-from src.dependencies import DbSession, CurrentUser
+import src.services.project_service as project_service
+from fastapi import APIRouter
+from src.dependencies import CurrentUser, DbSession
 from src.schemas.project import (
     ProjectCreate,
-    ProjectUpdate,
     ProjectResponse,
+    ProjectUpdate,
     TopicCreate,
     TopicResponse,
 )
-import src.services.project_service as project_service
-
 
 # Configure the logging
 logger = logging.getLogger(__name__)

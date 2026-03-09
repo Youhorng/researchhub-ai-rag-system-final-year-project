@@ -1,8 +1,8 @@
 from collections.abc import Generator
+
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 from src.config import get_settings
-
 
 # Get the config settings 
 settings = get_settings()

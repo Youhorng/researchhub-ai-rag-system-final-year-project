@@ -1,14 +1,13 @@
 import logging
 from typing import Annotated
+
+import src.repositories.user_repo as user_repo
 from fastapi import Depends, Header, HTTPException
 from sqlalchemy.orm import Session
-
 from src.config import Settings, get_settings
 from src.database import get_db
 from src.models.user import User
 from src.services.auth.clerk import verify_clerk_token
-import src.repositories.user_repo as user_repo
-
 
 # Configure logging
 logger = logging.getLogger(__name__)

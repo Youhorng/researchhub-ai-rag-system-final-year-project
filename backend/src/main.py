@@ -1,15 +1,14 @@
 import logging
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from src.config import get_settings
 from src.database import check_db_connection, engine
 from src.exceptions import exception_handlers
 from src.middlewares import setup_middlewares
-
 from src.routers.auth import router as auth_router
 from src.routers.health import router as health_router
 from src.routers.projects import router as projects_router
-
 
 # Configure settings and logging
 settings = get_settings()

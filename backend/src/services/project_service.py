@@ -1,12 +1,11 @@
 import logging
-from sqlalchemy.orm import Session
 
-from src.models.user import User
-from src.models.project import Project, ProjectTopic
-from src.schemas.project import ProjectCreate, ProjectUpdate, TopicCreate
-from src.exceptions import NotFoundError, ForbiddenError
 import src.repositories.project_repo as project_repo
-
+from sqlalchemy.orm import Session
+from src.exceptions import ForbiddenError, NotFoundError
+from src.models.project import Project, ProjectTopic
+from src.models.user import User
+from src.schemas.project import ProjectCreate, ProjectUpdate, TopicCreate
 
 # Configure the logging
 logger = logging.getLogger(__name__)

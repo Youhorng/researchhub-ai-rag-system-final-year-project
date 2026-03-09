@@ -1,9 +1,9 @@
-import logging 
+import logging
 import time
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from src.config import get_settings
-
 
 # Get the config settings
 settings = get_settings()

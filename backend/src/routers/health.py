@@ -1,7 +1,7 @@
 import logging
+
 from fastapi import APIRouter
 from src.database import check_db_connection
-
 
 # Configure logging
 logger = logging.getLogger(__name__)

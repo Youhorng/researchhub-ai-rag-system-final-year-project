@@ -1,7 +1,7 @@
 import logging
+
 from sqlalchemy.orm import Session
 from src.models.project import Project, ProjectTopic
-
 
 # Configure the logging
 logger = logging.getLogger(__name__)

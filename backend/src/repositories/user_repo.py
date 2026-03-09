@@ -1,8 +1,8 @@
 import logging
-from sqlalchemy.orm import Session
-from sqlalchemy.dialects.postgresql import insert
-from src.models.user import User, UserPreferences
 
+from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.orm import Session
+from src.models.user import User, UserPreferences
 
 # Configure logging
 logger = logging.getLogger(__name__)

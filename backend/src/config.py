@@ -1,7 +1,7 @@
 from functools import lru_cache
+
 from pydantic import BaseModel, computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
 
 # These are plain pydantic BaseModels (NOT BaseSettings).
 # They are nested inside the main Settings class below.

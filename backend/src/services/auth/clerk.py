@@ -1,10 +1,9 @@
 import logging
+
 import httpx
-from jose import JWTError, jwt 
 from fastapi import HTTPException
-
+from jose import JWTError, jwt
 from src.config import get_settings
-
 
 # Configure the logging and get settings
 logger = logging.getLogger(__name__)

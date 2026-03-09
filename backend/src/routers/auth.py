@@ -1,8 +1,8 @@
 import logging
+
 from fastapi import APIRouter
 from src.dependencies import CurrentUser
 from src.schemas.user import UserResponse
-
 
 # Configure logging
 logger = logging.getLogger(__name__)
