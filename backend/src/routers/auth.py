@@ -1,7 +1,6 @@
 import logging
 
 from fastapi import APIRouter, Request
-
 from src.dependencies import CurrentUser
 from src.schemas.user import UserResponse
 
