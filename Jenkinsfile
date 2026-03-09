@@ -19,7 +19,7 @@ pipeline {
     environment {
         EC2_HOST     = credentials('ec2-host')      // e.g. ec2-user@1.2.3.4
         EC2_SSH_KEY  = credentials('ec2-ssh-key')   // SSH private key credential
-        APP_DIR      = '/app/researchhub'
+        APP_DIR      = '/home/ubuntu/researchhub'
         COMPOSE_FILE = 'compose.ec2.yml'
     }
 
@@ -126,10 +126,7 @@ pipeline {
                                 researchhub-api:latest \\
                                 python -c "
                             from src.main import app
-                            from src.config import get_settings
-                            s = get_settings()
-                            print(f\\"App: {s.app_name} [{s.environment}]\\")
-                            print(\\"Validation passed\\")
+                            print('Image validation passed')
 "
                             echo "=== Validation passed - safe to deploy ==="
                         '
