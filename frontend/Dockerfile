@@ -15,6 +15,14 @@ RUN npm ci
 # Copy the rest of the source code 
 COPY . .
 
+# Declare build args so Docker passes them through to the build
+ARG VITE_CLERK_PUBLISHABLE_KEY
+ARG VITE_API_URL
+
+# Set as ENV so Vite (which reads process.env) can see them during npm run build
+ENV VITE_CLERK_PUBLISHABLE_KEY=$VITE_CLERK_PUBLISHABLE_KEY
+ENV VITE_API_URL=$VITE_API_URL
+
 # Build the static site (creates /app/dist)
 RUN npm run build
 

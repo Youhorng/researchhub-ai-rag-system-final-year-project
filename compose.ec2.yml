@@ -109,6 +109,11 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        # Pass Vite env vars at BUILD TIME — Vite bakes them into the JS bundle
+        # These must come from .env on EC2
+        - VITE_CLERK_PUBLISHABLE_KEY=${VITE_CLERK_PUBLISHABLE_KEY}
+        - VITE_API_URL=http://${EC2_PUBLIC_IP}:8000
     container_name: researchhub-frontend
     ports:
       - "80:80"
