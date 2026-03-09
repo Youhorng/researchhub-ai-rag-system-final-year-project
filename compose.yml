@@ -201,8 +201,10 @@ services:
       - OPENSEARCH__HOST=http://opensearch:9200
       - OLLAMA_HOST=http://ollama:11434
       - REDIS__HOST=redis
+      - PYTHONPATH=/opt/airflow
     volumes:
       - ./backend/airflow/dags:/opt/airflow/dags # Live-edit DAGs without rebuilding
+      - ./backend/airflow/data:/opt/airflow/data # Share datasets with DAGs
       - airflow_logs:/opt/airflow/logs
       - ./backend/airflow/plugins:/opt/airflow/plugins
       - ./backend/src:/opt/airflow/src # Share backend service code with DAGs

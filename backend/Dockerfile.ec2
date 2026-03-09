@@ -7,7 +7,6 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Install only Phase 1+2 dependencies (all binary wheels — no compilation needed)
 COPY requirements.ec2.txt .
 RUN pip install --no-cache-dir -r requirements.ec2.txt
 
