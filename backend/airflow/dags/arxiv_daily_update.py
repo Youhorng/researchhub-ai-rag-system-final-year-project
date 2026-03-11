@@ -5,10 +5,10 @@ import uuid
 from datetime import datetime, timedelta
 
 import arxiv
-from airflow.decorators import dag, task
-from sqlalchemy import create_engine, text
-from opensearchpy import OpenSearch
 import httpx
+from airflow.decorators import dag, task
+from opensearchpy import OpenSearch
+from sqlalchemy import create_engine, text
 
 # Configure the logging
 logger = logging.getLogger(__name__)
@@ -25,11 +25,19 @@ OPENSEARCH_USER = os.environ.get("OPENSEARCH_USER", "admin")
 OPENSEARCH_PASSWORD = os.environ.get("OPENSEARCH_PASSWORD", "admin")
 OPENSEARCH_INDEX_NAME = os.environ.get("OPENSEARCH__INDEX_NAME", "arxiv-papers")
 
-JINA_API_KEY = os.environ.get("JINA_API_KEY", "")
-JINA_EMBEDDING_MODEL = "jina-embeddings-v3"
-JINA_EMBEDDING_DIMENSIONS = 1024
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+OPENAI_EMBEDDING_MODEL = "text-embedding-3-small"
+OPENAI_EMBEDDING_DIMENSIONS = 1024
 
 DATABASE_URL = f"postgresql+psycopg2://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
+
+# Only index papers from these specific CS/ML categories
+TARGET_CATEGORIES = [
+    "cs.AI", "cs.CL", "cs.CV", "cs.CY", "cs.DB",
+    "cs.DS", "cs.HC", "cs.IR", "cs.IT", "cs.LG",
+    "cs.MA", "cs.NE", "cs.RO", "cs.SE", "cs.SI",
+    "stat.ML",
+]
 
 def get_opensearch_client():
     return OpenSearch(
@@ -42,37 +50,33 @@ def get_opensearch_client():
     )
 
 def get_embeddings(texts: list[str]) -> list[list[float]]:
-    if not JINA_API_KEY:
-        logger.error("JINA_API_KEY is not set!")
-        return [[0.0] * JINA_EMBEDDING_DIMENSIONS for _ in texts]
+    if not OPENAI_API_KEY:
+        logger.error("OPENAI_API_KEY is not set!")
+        return [[0.0] * OPENAI_EMBEDDING_DIMENSIONS for _ in texts]
 
     headers = {
-        "Authorization": f"Bearer {JINA_API_KEY}",
+        "Authorization": f"Bearer {OPENAI_API_KEY}",
         "Content-Type": "application/json",
     }
     payload = {
-        "model": JINA_EMBEDDING_MODEL,
-        "normalized": True,
-        "embedding_type": "float",
+        "model": OPENAI_EMBEDDING_MODEL,
         "input": texts,
+        "dimensions": OPENAI_EMBEDDING_DIMENSIONS,
     }
     try:
         with httpx.Client(timeout=30.0) as client:
-            response = client.post("https://api.jina.ai/v1/embeddings", json=payload, headers=headers)
+            response = client.post("https://api.openai.com/v1/embeddings", json=payload, headers=headers)
             response.raise_for_status()
             data = response.json()
             return [item["embedding"] for item in data.get("data", [])]
     except httpx.HTTPError as e:
-        logger.error(f"Jina API Error: {e}")
-        return [[0.0] * JINA_EMBEDDING_DIMENSIONS for _ in texts]
+        logger.error(f"OpenAI API Error: {e}")
+        return [[0.0] * OPENAI_EMBEDDING_DIMENSIONS for _ in texts]
 
 
 def is_relevant_category(categories: list[str]) -> bool:
-    """Check if the paper belongs to CS or ML categories."""
-    for c in categories:
-        if c.startswith("cs.") or c == "stat.ML":
-            return True
-    return False
+    """Check if the paper belongs to one of our target categories."""
+    return any(c in TARGET_CATEGORIES for c in categories)
 
 
 @dag(
@@ -95,9 +99,10 @@ def arxiv_daily_update_dag():
                 # Query arXiv for papers added/updated in "Computer Science"
                 # Sort by submission date, descending. We'll just grab the 100 most recent
                 # each day for this MVP to avoid rate limits.
+                category_query = " OR ".join(f"cat:{c}" for c in TARGET_CATEGORIES)
                 search = arxiv.Search(
-                    query="cat:cs.* OR cat:stat.ML",
-                    max_results=100, 
+                    query=category_query,
+                    max_results=100,
                     sort_by=arxiv.SortCriterion.SubmittedDate,
                     sort_order=arxiv.SortOrder.Descending
                 )

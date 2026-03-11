@@ -15,7 +15,7 @@ from src.models.base import Base
 #   1. Fetches the file from MinIO
 #   2. Parses text with docling
 #   3. Splits into chunks (600 chars, 100 overlap)
-#   4. Embeds chunks with Jina AI
+#   4. Embeds chunks with OpenAI
 #   5. Indexes chunks into OpenSearch arxiv-chunks index
 #   6. Sets chunks_indexed = True here
 class Document(Base):

@@ -33,7 +33,7 @@ class Paper(Base, TimestampMixin):
 
     # The full paper abstract — used for:
     #   1. BM25 keyword search in OpenSearch.
-    #   2. Embedding via Jina AI → stored in arxiv-metadata index as a 1024-dim vector.
+    #   2. Embedding via OpenAI → stored in arxiv-metadata index as a 1024-dim vector.
     abstract: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # ArXiv category codes this paper belongs to (["cs.AI", "stat.ML"]).

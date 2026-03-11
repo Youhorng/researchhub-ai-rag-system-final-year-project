@@ -101,9 +101,9 @@ class Settings(BaseSettings):
     ollama_model: str = "llama3.2:1b"          # maps to OLLAMA_MODEL
     ollama_timeout: int = 300                  # maps to OLLAMA_TIMEOUT (seconds)
 
-    jina_api_key: str = ""
-    jina_embedding_model: str = "jina-embeddings-v3"
-    jina_embedding_dimensions: int = 1024
+    openai_api_key: str = ""
+    openai_embedding_model: str = "text-embedding-3-small"
+    openai_embedding_dimensions: int = 1024
 
     minio_endpoint: str = "minio:9000"
     minio_access_key: str = "minioadmin"

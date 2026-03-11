@@ -29,7 +29,7 @@ class Project(Base, TimestampMixin):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Free-text description of what the researcher is studying.
-    # This text is embedded by Jina AI to produce a 1024-dim vector,
+    # This text is embedded by OpenAI to produce a 1024-dim vector,
     # which is then used for semantic (KNN) search against arxiv-metadata.
     research_goal: Mapped[str | None] = mapped_column(Text, nullable=True)
 
