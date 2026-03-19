@@ -71,6 +71,10 @@ class Paper(Base, TimestampMixin):
         DateTime(timezone=True), nullable=True
     )
 
+    # Stores the ID of an active OpenAI Batch API submission handling this paper.
+    # Null if not currently in a batch or if already indexed.
+    openai_batch_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
     # 1-to-many: this paper can be linked to many projects via project_papers.
     # No cascade here — deleting a global paper should NOT cascade to projects.
     project_papers: Mapped[list["ProjectPaper"]] = relationship(

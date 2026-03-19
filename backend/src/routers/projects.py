@@ -10,7 +10,12 @@ from src.schemas.project import (
     ProjectUpdate,
     TopicCreate,
     TopicResponse,
+    KeywordExtractionRequest,
+    KeywordExtractionResponse
 )
+
+from src.services.llm.keyword_extractor import extract_keywords
+
 
 # Configure the logging
 logger = logging.getLogger(__name__)
@@ -87,3 +92,15 @@ async def list_topics(
     current_user: CurrentUser,
 ):
     return project_service.list_topics(db, current_user, project_id)
+
+
+# Keyword extraction endpoint
+@router.post("/projects/suggest-keywords", response_model=KeywordExtractionResponse)
+async def suggest_keywords(
+    data: KeywordExtractionRequest,
+    db: DbSession,
+    current_user: CurrentUser
+):
+
+    keywords = extract_keywords(data.research_goal)
+    return KeywordExtractionResponse(keywords=keywords)

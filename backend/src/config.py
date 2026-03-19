@@ -96,10 +96,10 @@ class Settings(BaseSettings):
     clerk_publishable_key: str = ""    # CLERK_PUBLISHABLE_KEY
     clerk_jwks_url: str = ""           # CLERK_JWKS_URL
 
-    # OLLAMA_HOST uses single underscore — flat var, not nested.
-    ollama_host: str = "http://ollama:11434"   # maps to OLLAMA_HOST
-    ollama_model: str = "llama3.2:1b"          # maps to OLLAMA_MODEL
-    ollama_timeout: int = 300                  # maps to OLLAMA_TIMEOUT (seconds)
+    # OpenAI Model
+    openai_chat_model: str = "gpt-4o-mini"
+    openai_api_url: str = "https://api.openai.com/v1/embeddings"
+    openai_chat_url: str = "https://api.openai.com/v1/chat/completions"
 
     openai_api_key: str = ""
     openai_embedding_model: str = "text-embedding-3-small"

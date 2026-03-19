@@ -26,6 +26,12 @@ FROM python:3.12.8-slim AS runner
 
 WORKDIR /app
 
+# Install system libraries required by docling/OpenCV for PDF parsing
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        libxcb1 libgl1 libglib2.0-0 && \
+    rm -rf /var/lib/apt/lists/*
+
 # Copy the virtual environment from the builder stage
 COPY --from=builder /app/.venv /app/.venv
 
@@ -40,9 +46,6 @@ COPY src ./src
 # alembic/    — env.py, versions/, and migration scripts
 COPY alembic.ini ./alembic.ini
 COPY alembic ./alembic
-
-# Copy the app entrypoint
-COPY main.py ./main.py
 
 # PYTHONUNBUFFERED=1 to disable output buffering
 ENV PYTHONUNBUFFERED=1

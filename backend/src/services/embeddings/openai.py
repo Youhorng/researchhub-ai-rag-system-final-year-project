@@ -7,8 +7,6 @@ from src.config import get_settings
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
-OPENAI_API_URL = "https://api.openai.com/v1/embeddings"
-
 
 def get_embeddings(texts: list[str]) -> list[list[float]]:
     """
@@ -33,7 +31,7 @@ def get_embeddings(texts: list[str]) -> list[list[float]]:
     try:
         # Give it a generous timeout since embeddings can take a few seconds
         with httpx.Client(timeout=30.0) as client:
-            response = client.post(OPENAI_API_URL, headers=headers, json=payload)
+            response = client.post(settings.openai_api_url, headers=headers, json=payload)
             response.raise_for_status()
 
             data = response.json()

@@ -73,3 +73,13 @@ class TopicResponse(BaseModel):
     
     model_config = {"from_attributes": True}
 
+
+# Define the keyword extraction request class
+class KeywordExtractionRequest(BaseModel):
+    research_goal: str
+
+
+# Define the keyword extraction response class
+class KeywordExtractionResponse(BaseModel):
+    keywords: list[str]
+

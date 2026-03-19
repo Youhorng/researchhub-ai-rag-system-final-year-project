@@ -20,6 +20,7 @@ def get_opensearch_client() -> OpenSearch:
         verify_certs=False,
         ssl_assert_hostname=False,
         ssl_show_warn=False,
+        timeout=60,
     )
     return client
 

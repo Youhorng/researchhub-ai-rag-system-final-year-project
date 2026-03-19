@@ -105,25 +105,25 @@ _Load data before users can search. `arxiv-metadata` must be populated before Ph
 
 ### 3.1 OpenSearch Setup
 
-- [ ] `services/opensearch/client.py` — OpenSearch Python client wrapper, reads `OPENSEARCH_HOST`, `OPENSEARCH_USER`, `OPENSEARCH_PASSWORD` from settings
-- [ ] `services/opensearch/index_config.py`:
+- [x] `services/opensearch/client.py` — OpenSearch Python client wrapper, reads `OPENSEARCH_HOST`, `OPENSEARCH_USER`, `OPENSEARCH_PASSWORD` from settings
+- [x] `services/opensearch/index_config.py`:
   - Create `arxiv-metadata` index: fields `arxiv_id`, `title`, `abstract`, `categories[]`, `published_at`, `abstract_vector` (1024-dim, cosinesimil)
   - Create `arxiv-chunks` index: fields `chunk_text`, `chunk_vector` (1024-dim), `paper_id`, `document_id`, `project_id`, `arxiv_id`, `title`
   - Register `hybrid-rrf-pipeline` (Reciprocal Rank Fusion) in OpenSearch
 
 ### 3.2 Embeddings Service
 
-- [ ] `services/embeddings/jina.py` — call Jina AI API (`jina-embeddings-v3`), returns 1024-dim float list; batch support for chunked lists
+- [x] `services/embeddings/openai_embeddings.py` — call OpenAI API (`text-embedding-3-small`), returns 1024-dim float list (via `dimensions=1024`); batch support via OpenAI Batch API
 
 ### 3.3 Airflow DAGs
 
-- [ ] `airflow/dags/arxiv_bulk_load.py` (run once on startup):
+- [x] `airflow/dags/arxiv_bulk_load.py` (run once on startup):
   - Download Kaggle ArXiv dataset (JSON)
   - Filter: `cs.*` and `stat.ML` categories only
   - Insert rows into `papers` table (PostgreSQL) — `arxiv_id`, `title`, `authors[]`, `abstract`, `categories[]`, `published_at`, `pdf_url`
   - Embed `title + abstract` via Jina AI → index into `arxiv-metadata` OpenSearch
   - Set `papers.metadata_indexed = True`, `papers.metadata_indexed_at = now()`
-- [ ] `airflow/dags/arxiv_daily_update.py` (nightly):
+- [x] `airflow/dags/arxiv_daily_update.py` (nightly):
   - Poll ArXiv OAI-PMH for new papers per cs.\* category since last run
   - Insert new rows into `papers`
   - Embed + index into `arxiv-metadata`
@@ -150,7 +150,7 @@ _The full project creation flow — requires Phase 3 to have data._
 
 - [ ] `services/opensearch/query_builder.py` — build hybrid OpenSearch query:
   - BM25 on `title + abstract` using `initial_keywords`
-  - KNN on `abstract_vector` using embedded `research_goal` (via Jina AI)
+  - KNN on `abstract_vector` using embedded `research_goal` (via OpenAI `text-embedding-3-small`)
   - RRF pipeline combining both
   - Hard filters: `categories` (from `arxiv_categories[]`), date range (`year_from`/`year_to`)
   - Exclude papers already in `project_papers` for this project
@@ -178,7 +178,7 @@ _The full project creation flow — requires Phase 3 to have data._
 
 - [ ] `services/pdf_parser/parser.py` — docling: fetch PDF from URL → extract raw text
 - [ ] `services/indexing/text_chunker.py` — split text into 600-char chunks with 100-char overlap, respect `min_chunk_size=100`, optionally section-based
-- [ ] `services/indexing/hybrid_indexer.py` — orchestrate: chunk list → batch embed via Jina AI → bulk index into `arxiv-chunks` with `paper_id`, `project_id`, `arxiv_id`; set `papers.chunks_indexed = True`
+- [ ] `services/indexing/hybrid_indexer.py` — orchestrate: chunk list → batch embed via OpenAI `text-embedding-3-small` → bulk index into `arxiv-chunks` with `paper_id`, `project_id`, `arxiv_id`; set `papers.chunks_indexed = True`
 
 ### 4.5 PDF Upload
 
@@ -212,14 +212,14 @@ _Core AI feature. Requires Phase 4 to have `arxiv-chunks` populated._
 
 - [ ] `routers/search.py` — mount at `/api/v1`:
   - `POST /projects/{project_id}/search` — body `{ "query": str, "top_k": int }`
-  - Embed query via Jina AI → BM25 + KNN against `arxiv-chunks` scoped to `project_id` + RRF
+  - Embed query via OpenAI `text-embedding-3-small` → BM25 + KNN against `arxiv-chunks` scoped to `project_id` + RRF
   - Check Redis cache first; cache result with 6-hour TTL
   - Returns ranked chunk list with `paper_id`, `title`, `chunk_text`, `relevance_score`
 
 ### 5.3 RAG Pipeline
 
 - [ ] `services/rag/pipeline.py`:
-  1. Embed user query (Jina AI)
+  1. Embed user query (OpenAI `text-embedding-3-small`)
   2. Hybrid search `arxiv-chunks` scoped to `project_id` → top-K chunks
   3. Build prompt: `[system context] + [retrieved chunks with source labels] + [user query]`
   4. Call Ollama `/api/generate` → stream or collect response
