@@ -27,17 +27,12 @@ def _get_client():
         logger.info("Langfuse tracing disabled via config")
         return None
 
-    if not settings.langfuse.public_key or not settings.langfuse.secret_key:
-        logger.warning("Langfuse keys not set — tracing disabled")
-        return None
-
     try:
         from langfuse import Langfuse
 
+        # SDK auto-reads LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY,
+        # and LANGFUSE_BASE_URL from environment variables.
         _client = Langfuse(
-            public_key=settings.langfuse.public_key,
-            secret_key=settings.langfuse.secret_key,
-            host=settings.langfuse.host,
             flush_at=settings.langfuse.flush_at,
             flush_interval=settings.langfuse.flush_interval,
             debug=settings.langfuse.debug,
@@ -57,27 +52,15 @@ class _NoOpSpan:
         pass
 
     def update(self, **kwargs):
-        pass
+        return self
 
-    def span(self, **kwargs):
+    def start_span(self, **kwargs):
         return _NoOpSpan()
 
-    def generation(self, **kwargs):
+    def start_generation(self, **kwargs):
         return _NoOpSpan()
 
-
-class _NoOpTrace:
-    """Stub trace that silently ignores all calls."""
-
-    id = "noop"
-
-    def span(self, **kwargs):
-        return _NoOpSpan()
-
-    def generation(self, **kwargs):
-        return _NoOpSpan()
-
-    def update(self, **kwargs):
+    def update_trace(self, **kwargs):
         pass
 
 
@@ -87,25 +70,25 @@ def create_rag_trace(
     project_id: uuid.UUID,
     user_query: str,
 ):
-    """Create a Langfuse trace for a RAG pipeline run.
+    """Create a Langfuse root span for a RAG pipeline run.
 
-    Returns a real Langfuse trace if available, otherwise a no-op stub.
+    Returns a real Langfuse span if available, otherwise a no-op stub.
     """
     client = _get_client()
     if client is None:
-        return _NoOpTrace()
+        return _NoOpSpan()
 
     try:
-        trace = client.trace(
+        span = client.start_span(
             name="rag-chat",
-            user_id=str(user_id),
-            session_id=str(session_id),
+            input=user_query,
             metadata={
+                "user_id": str(user_id),
+                "session_id": str(session_id),
                 "project_id": str(project_id),
             },
-            input=user_query,
         )
-        return trace
+        return span
     except Exception:
         logger.exception("Failed to create Langfuse trace")
-        return _NoOpTrace()
+        return _NoOpSpan()

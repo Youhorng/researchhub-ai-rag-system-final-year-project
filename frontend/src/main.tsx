@@ -1,7 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { ClerkProvider } from '@clerk/react'
-import { BrowserRouter } from 'react-router-dom'
+import { BrowserRouter, useNavigate } from 'react-router-dom'
 import './index.css'
 import App from './App.tsx'
 
@@ -11,12 +11,26 @@ if (!CLERK_KEY) {
   throw new Error('Missing VITE_CLERK_PUBLISHABLE_KEY in .env')
 }
 
+function ClerkProviderWithRoutes({ children }: { children: React.ReactNode }) {
+  const navigate = useNavigate();
+  return (
+    <ClerkProvider 
+      publishableKey={CLERK_KEY} 
+      afterSignOutUrl="/"
+      routerPush={(to) => navigate(to)}
+      routerReplace={(to) => navigate(to, { replace: true })}
+    >
+      {children}
+    </ClerkProvider>
+  );
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <ClerkProvider publishableKey={CLERK_KEY}>
-      <BrowserRouter>
+    <BrowserRouter>
+      <ClerkProviderWithRoutes>
         <App />
-      </BrowserRouter>
-    </ClerkProvider>
+      </ClerkProviderWithRoutes>
+    </BrowserRouter>
   </StrictMode>,
 )

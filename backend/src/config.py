@@ -13,9 +13,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class LangfuseSettings(BaseModel):
     enabled: bool = True
-    host: str = "http://localhost:3001"
-    public_key: str = ""   # maps to LANGFUSE__PUBLIC_KEY
-    secret_key: str = ""   # maps to LANGFUSE__SECRET_KEY
     flush_at: int = 15
     flush_interval: float = 1.0
     debug: bool = False

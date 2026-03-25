@@ -1,0 +1,13 @@
+{
+  "include": [
+    "backend/src",
+    "backend/tests",
+    "backend/main.py"
+  ],
+  "executionEnvironments": [
+    {
+      "root": "backend",
+      "extraPaths": ["backend"]
+    }
+  ]
+}

@@ -8,6 +8,7 @@ from src.exceptions import exception_handlers
 from src.middlewares import setup_middlewares
 from src.routers.auth import router as auth_router
 from src.routers.chat import router as chat_router
+from src.routers.search import router as search_router
 from src.routers.documents import router as documents_router
 from src.routers.health import router as health_router
 from src.routers.papers import router as papers_router
@@ -78,3 +79,4 @@ app.include_router(projects_router)
 app.include_router(papers_router)
 app.include_router(documents_router)
 app.include_router(chat_router)
+app.include_router(search_router)

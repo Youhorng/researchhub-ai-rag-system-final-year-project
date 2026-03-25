@@ -6,23 +6,37 @@ export default function SignUpPage() {
       routing="path" 
       path="/sign-up" 
       signInUrl="/sign-in" 
-      forceRedirectUrl="/"
+      forceRedirectUrl="/dashboard"
       appearance={{
         variables: {
-          colorPrimary: '#18181b',
-          borderRadius: '0.375rem',
+          colorPrimary: '#a7a5ff',
+          colorBackground: '#161f33',
+          colorText: '#ffffff',
+          colorTextSecondary: '#a1a1aa',
+          colorInputBackground: '#000000',
+          colorInputText: '#E2E8F0',
+          borderRadius: '0.5rem',
         },
         elements: {
           rootBox: 'mx-auto w-full',
-          cardBox: 'shadow-none border border-zinc-200',
-          card: 'bg-white shadow-none w-full p-6 sm:p-8',
-          headerTitle: 'text-3xl font-bold tracking-tight text-zinc-900',
-          headerSubtitle: 'text-zinc-500 mt-2',
-          formButtonPrimary: 'bg-zinc-900 hover:bg-zinc-800 text-white font-medium py-2 rounded-md transition-colors shadow-none',
-          formFieldLabel: 'text-zinc-700 font-medium',
-          formFieldInput: 'rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-zinc-900 focus:outline-none transition-all',
-          socialButtonsBlockButton: 'border border-zinc-200 bg-white hover:bg-zinc-50 font-medium text-zinc-700 rounded-md py-2 transition-colors shadow-none',
-          footerActionLink: 'text-zinc-900 font-semibold hover:text-zinc-700',
+          cardBox: 'shadow-none border-none',
+          card: 'bg-surface_container_high shadow-[inset_0_1px_0_0_#212c43] w-full p-6 md:p-8',
+          headerTitle: 'font-display text-4xl font-bold tracking-tight text-white mb-1',
+          headerSubtitle: 'font-sans text-on_surface mt-2 text-base',
+          formFieldLabel: 'font-sans text-on_surface font-medium',
+          formFieldInput: 'rounded-lg border-none bg-surface_container_lowest px-4 py-3 text-sm text-on_surface placeholder:text-zinc-400 focus:ring-1 focus:ring-primary focus:outline-none transition-all',
+          formButtonPrimary: 'font-sans bg-primary-gradient shadow-[0_0_16px_rgba(167,165,255,0.2)] hover:shadow-[0_0_24px_rgba(167,165,255,0.4)] text-white font-medium py-3 rounded-lg transition-all border-none',
+          socialButtonsBlockButton: 'font-sans border-none bg-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.1)] font-medium text-white rounded-lg py-3 transition-colors shadow-none text-white',
+          socialButtonsBlockButtonText: 'font-sans font-medium text-white',
+          badge: 'text-zinc-200 bg-zinc-800 border-zinc-700',
+          footerActionLink: 'font-sans text-primary font-semibold hover:text-primary_dim',
+          footerActionText: 'font-sans text-on_surface',
+          dividerLine: 'bg-[#212c43]',
+          dividerText: 'font-sans text-on_surface',
+          formFieldLabelRow: 'font-sans',
+          identityPreviewText: 'text-on_surface',
+          identityPreviewEditButtonIcon: 'text-primary',
+          formResendCodeLink: 'text-primary hover:text-primary_dim font-medium',
         }
       }}
     />

@@ -164,32 +164,34 @@ async def run_rag_pipeline(
 
         # 3. Embed query
         t0 = time.time()
-        embed_span = trace.span(name="embed", input=user_query)
+        embed_span = trace.start_span(name="embed", input=user_query)
         vectors = get_embeddings([user_query])
         query_vector = vectors[0] if vectors else []
         embed_ms = round((time.time() - t0) * 1000)
-        embed_span.end(
+        embed_span.update(
             output={"dimensions": len(query_vector), "latency_ms": embed_ms}
         )
+        embed_span.end()
 
         # 4. Retrieve chunks
         t0 = time.time()
-        retrieve_span = trace.span(name="retrieve", input=user_query)
+        retrieve_span = trace.start_span(name="retrieve", input=user_query)
         chunks = _search_chunks(os_client, user_query, query_vector, project_id)
         retrieve_ms = round((time.time() - t0) * 1000)
-        retrieve_span.end(
+        retrieve_span.update(
             output={
                 "num_chunks": len(chunks),
                 "latency_ms": retrieve_ms,
             }
         )
+        retrieve_span.end()
 
         # 5. Build messages
         system_message = build_system_message(chunks)
         messages = _build_chat_messages(system_message, history, user_query)
 
         # 6. Stream generation
-        gen_span = trace.generation(
+        gen_span = trace.start_generation(
             name="generate",
             model=settings.openai_chat_model,
             input=messages,
@@ -224,14 +226,15 @@ async def run_rag_pipeline(
                 yield _sse("chunk", {"content": delta.content})
 
         gen_ms = round((time.time() - t0) * 1000)
-        gen_span.end(
+        gen_span.update(
             output=full_response,
-            usage={
+            usage_details={
                 "input": input_tokens,
                 "output": output_tokens,
             },
             metadata={"latency_ms": gen_ms},
         )
+        gen_span.end()
 
         # 7. Extract citations and renumber sequentially
         renumbered_text, cited_sources = _extract_citations(full_response, chunks)
@@ -255,8 +258,9 @@ async def run_rag_pipeline(
             db, session_id, "assistant", renumbered_text, cited_sources, metadata
         )
 
-        # Update trace output
+        # Update trace output and end root span
         trace.update(output=full_response)
+        trace.end()
 
     except Exception as e:
         logger.exception("RAG pipeline error")

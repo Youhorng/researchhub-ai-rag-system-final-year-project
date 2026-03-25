@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,7 +6,26 @@
 
 @layer base {
   body {
-    @apply bg-background text-foreground antialiased;
-    font-family: 'Inter', system-ui, sans-serif;
+    @apply antialiased;
+    background-color: #070e1d; /* Matches surface color */
+    color: #E2E8F0; /* Matches on_surface color */
+    font-family: 'Poppins', system-ui, sans-serif;
   }
 }
+
+/* Force override for any straggling Clerk texts (like "Last used" badges or internal elements) */
+[class*="cl-badge"] {
+  color: #E2E8F0 !important;
+  background-color: #27272a !important;
+  border: 1px solid #71717a !important;
+}
+
+[class*="cl-internal-phgxt"], [class*="cl-socialButtonsBlockButtonText"], [class*="cl-dividerText"] {
+  color: #E2E8F0 !important;
+}
+
+/* Broad catch-all for any span inside the social button block (fixes "Last used") */
+[class*="cl-socialButtonsBlockButton"] span {
+  color: #E2E8F0 !important;
+}
+
