@@ -1,8 +1,17 @@
-import { SignIn } from '@clerk/react';
+import { SignIn, ClerkLoaded, ClerkLoading } from '@clerk/react';
+import { Loader2 } from 'lucide-react';
 
 export default function SignInPage() {
   return (
-    <SignIn 
+    <div className="w-full flex justify-center">
+      <ClerkLoading>
+        <div className="flex flex-col items-center justify-center bg-surface_container_high rounded-2xl w-full h-[500px] border border-[#161f33] shadow-[inset_0_1px_0_0_#212c43]">
+          <Loader2 className="animate-spin text-primary mb-4" size={36} />
+          <p className="text-zinc-400 font-medium font-sans text-sm">Loading security module...</p>
+        </div>
+      </ClerkLoading>
+      <ClerkLoaded>
+        <SignIn 
       routing="path" 
       path="/sign-in" 
       signUpUrl="/sign-up" 
@@ -40,5 +49,7 @@ export default function SignInPage() {
         }
       }}
     />
+      </ClerkLoaded>
+    </div>
   );
 }

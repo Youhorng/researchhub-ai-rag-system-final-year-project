@@ -1,10 +1,11 @@
-import { Routes, Route, Navigate } from 'react-router-dom'
-import { useAuth } from '@clerk/react'
+import { Routes, Route, Navigate } from 'react-router-dom';
+import { useAuth } from '@clerk/react';
 import AuthLayout from './layouts/AuthLayout'
 import SignInPage from './pages/SignInPage'
 import SignUpPage from './pages/SignUpPage'
 import DashboardLayout from './layouts/DashboardLayout'
 import DashboardPage from './pages/DashboardPage'
+import ProjectsPage from './pages/ProjectsPage'
 
 function Home() {
   const { isSignedIn } = useAuth()
@@ -17,8 +18,13 @@ function Home() {
     <div className="flex flex-col items-center justify-center min-h-screen bg-surface text-on_surface p-4 font-sans relative overflow-hidden">
       <div className="absolute top-[-20%] left-[-10%] w-[120%] h-[120%] bg-[radial-gradient(circle_at_50%_50%,rgba(167,165,255,0.08),transparent_50%)] pointer-events-none z-0"></div>
       
-      <div className="z-10 flex flex-col items-center">
-        <h1 className="text-5xl font-bold mb-4 tracking-tight font-display text-white">ResearchHub</h1>
+      <div className="z-10 flex flex-col items-center text-center">
+        <img 
+          src="/main_logo.png" 
+          alt="ResearchHub Logo" 
+          className="w-16 h-16 object-contain drop-shadow-[0_0_24px_rgba(167,165,255,0.25)] mb-6" 
+        />
+        <h1 className="text-6xl font-bold mb-4 tracking-tight font-display text-white">ResearchHub</h1>
         <p className="text-zinc-400 mb-8 max-w-lg text-center text-lg">
           The centralized AI platform for your academic research. Please sign in or create an account to continue.
         </p>
@@ -46,7 +52,7 @@ function App() {
       <Route element={<DashboardLayout />}>
         <Route path="/dashboard" element={<DashboardPage />} />
         {/* Sub-routes */}
-        <Route path="/dashboard/projects" element={<div className="font-display font-medium text-white text-2xl">Projects Area</div>} />
+        <Route path="/dashboard/projects" element={<ProjectsPage />} />
         <Route path="/dashboard/knowledge" element={<div className="font-display font-medium text-white text-2xl">Knowledge Base</div>} />
         <Route path="/dashboard/chat" element={<div className="font-display font-medium text-white text-2xl">AI Chat</div>} />
       </Route>

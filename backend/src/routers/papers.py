@@ -105,11 +105,18 @@ async def update_paper_status(
     if not project_paper:
         raise HTTPException(status_code=404, detail="Paper not found in this project")
 
-    # Update the status and commit
+    # Update the status
     from datetime import datetime, timezone
 
+    old_status = project_paper.status
     project_paper.status = data.status
     project_paper.status_updated_at = datetime.now(timezone.utc)
+
+    # Update the project's denormalized paper count if status changed
+    if old_status != "accepted" and data.status == "accepted":
+        project.paper_count += 1
+    elif old_status == "accepted" and data.status != "accepted":
+        project.paper_count = max(project.paper_count - 1, 0)
 
     db.commit()
     db.refresh(project_paper)
