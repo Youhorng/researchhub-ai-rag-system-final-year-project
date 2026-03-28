@@ -6,6 +6,12 @@ import SignUpPage from './pages/SignUpPage'
 import DashboardLayout from './layouts/DashboardLayout'
 import DashboardPage from './pages/DashboardPage'
 import ProjectsPage from './pages/ProjectsPage'
+import ProjectLayout from './layouts/ProjectLayout'
+import ProjectDashboardPage from './pages/project/ProjectDashboardPage'
+import KnowledgeBasePage from './pages/project/KnowledgeBasePage'
+import TopicsPage from './pages/project/TopicsPage'
+import ChatPage from './pages/project/ChatPage'
+import SettingsPage from './pages/project/SettingsPage'
 
 function Home() {
   const { isSignedIn } = useAuth()
@@ -53,8 +59,17 @@ function App() {
         <Route path="/dashboard" element={<DashboardPage />} />
         {/* Sub-routes */}
         <Route path="/dashboard/projects" element={<ProjectsPage />} />
-        <Route path="/dashboard/knowledge" element={<div className="font-display font-medium text-white text-2xl">Knowledge Base</div>} />
-        <Route path="/dashboard/chat" element={<div className="font-display font-medium text-white text-2xl">AI Chat</div>} />
+        <Route path="/dashboard/knowledge" element={<Navigate to="/dashboard/projects" replace />} />
+        <Route path="/dashboard/chat" element={<Navigate to="/dashboard/projects" replace />} />
+      </Route>
+
+      {/* Authenticated Project Sub-App */}
+      <Route path="/dashboard/projects/:projectId" element={<ProjectLayout />}>
+        <Route index element={<ProjectDashboardPage />} />
+        <Route path="knowledge" element={<KnowledgeBasePage />} />
+        <Route path="topics" element={<TopicsPage />} />
+        <Route path="chat" element={<ChatPage />} />
+        <Route path="settings" element={<SettingsPage />} />
       </Route>
 
       {/* Fallback */}

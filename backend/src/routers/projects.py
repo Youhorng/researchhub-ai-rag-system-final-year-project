@@ -10,8 +10,9 @@ from src.schemas.project import (
     ProjectUpdate,
     TopicCreate,
     TopicResponse,
+    TopicUpdate,
     KeywordExtractionRequest,
-    KeywordExtractionResponse
+    KeywordExtractionResponse,
 )
 
 from src.services.llm.keyword_extractor import extract_keywords
@@ -92,6 +93,30 @@ async def list_topics(
     current_user: CurrentUser,
 ):
     return project_service.list_topics(db, current_user, project_id)
+
+
+@router.patch(
+    "/projects/{project_id}/topics/{topic_id}",
+    response_model=TopicResponse,
+)
+async def update_topic(
+    project_id: uuid.UUID,
+    topic_id: uuid.UUID,
+    data: TopicUpdate,
+    db: DbSession,
+    current_user: CurrentUser,
+):
+    return project_service.update_topic(db, current_user, project_id, topic_id, data)
+
+
+@router.delete("/projects/{project_id}/topics/{topic_id}", status_code=204)
+async def delete_topic(
+    project_id: uuid.UUID,
+    topic_id: uuid.UUID,
+    db: DbSession,
+    current_user: CurrentUser,
+):
+    project_service.delete_topic(db, current_user, project_id, topic_id)
 
 
 # Keyword extraction endpoint

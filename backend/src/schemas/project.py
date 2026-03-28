@@ -20,6 +20,11 @@ class ProjectUpdate(BaseModel):
     name: str | None = None
     description: str | None = None
     status: str | None = None
+    research_goal: str | None = None
+    initial_keywords: list[str] | None = None
+    arxiv_categories: list[str] | None = None
+    year_from: int | None = None
+    year_to: int | None = None
 
     @field_validator("status")
     @classmethod
@@ -55,6 +60,15 @@ class TopicCreate(BaseModel):
     name: str
     arxiv_categories: list[str] | None = None
     keywords: list[str] | None = None
+    year_from: int | None = None
+    year_to: int | None = None
+
+
+# Define the topic update class
+class TopicUpdate(BaseModel):
+    name: str | None = None
+    keywords: list[str] | None = None
+    arxiv_categories: list[str] | None = None
     year_from: int | None = None
     year_to: int | None = None
 

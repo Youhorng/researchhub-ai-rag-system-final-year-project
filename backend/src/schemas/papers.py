@@ -26,14 +26,21 @@ class ProjectPaperResponse(BaseModel):
     added_by: str | None
     added_at: datetime
     status_updated_at: datetime | None
-    
+    topic_id: uuid.UUID | None = None
+
     model_config = ConfigDict(from_attributes=True)
 
 
 class PaperSearchRequest(BaseModel):
     keywords: list[str]
     limit: int = 10
+    topic_id: uuid.UUID | None = None
+
+
+class PaperDiscoverRequest(BaseModel):
+    limit: int = 20
 
 
 class PaperUpdateStatusRequest(BaseModel):
-    status: str  # "accepted" or "rejected"
+    status: str | None = None
+    topic_id: uuid.UUID | None = None

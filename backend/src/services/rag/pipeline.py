@@ -3,13 +3,14 @@
 Flow:
 1. Save user message to DB
 2. Load last 10 messages (conversation context)
-3. Embed user query via get_embeddings()           [Langfuse: embed span]
-4. Hybrid search arxiv-papers-chunks by project_id  [Langfuse: retrieve span]
+3. Run LangGraph agent (guardrail → retrieve → grade → rewrite loop)
+4. If guardrail rejects → yield rejection SSE → return
 5. Build messages: [system + sources] + [history] + [user query]
 6. Stream OpenAI response (AsyncOpenAI SDK)         [Langfuse: generation span]
 7. Extract [N] citations from response text
 8. Yield citations event + done event
-9. Save assistant message with cited_sources + metadata to DB
+9. Run hallucination check (non-blocking, analytics only)
+10. Save assistant message with cited_sources + metadata to DB
 """
 
 import json
@@ -22,11 +23,13 @@ from collections.abc import AsyncGenerator
 import openai
 from opensearchpy import OpenSearch
 from sqlalchemy.orm import Session
+
 from src.config import get_settings
+from src.models.project import Project
 from src.repositories import chat_repo
-from src.services.embeddings.openai import get_embeddings
+from src.services.agents.graph import build_retrieval_graph
+from src.services.agents.nodes.hallucination_check import check_hallucination
 from src.services.langfuse.tracer import create_rag_trace
-from src.services.opensearch.query_builder import build_chunk_search_query
 from src.services.rag.prompts import build_system_message
 
 logger = logging.getLogger(__name__)
@@ -43,7 +46,6 @@ def _source_key(chunk: dict) -> str:
     """Return a dedup key for a chunk — group by paper or document."""
     paper_id = chunk.get("paper_id", "")
     document_id = chunk.get("document_id", "")
-    # Prefer paper_id, fall back to document_id
     return paper_id or document_id or ""
 
 
@@ -51,11 +53,9 @@ def _extract_citations(text: str, chunks: list[dict]) -> tuple[str, list[dict]]:
     """Extract [N] markers, group by paper/document, renumber sequentially."""
     original_indices = sorted(set(int(m) for m in re.findall(r"\[(\d+)\]", text)))
 
-    # Step 1: Map each cited chunk index to a deduplicated source group.
-    # Multiple chunk indices that belong to the same paper get the same new index.
-    seen_sources: dict[str, int] = {}  # source_key → new_index
+    seen_sources: dict[str, int] = {}
     sources: list[dict] = []
-    remap: dict[int, int] = {}  # old chunk index → new source index
+    remap: dict[int, int] = {}
 
     for idx in original_indices:
         if not (1 <= idx <= len(chunks)):
@@ -65,10 +65,8 @@ def _extract_citations(text: str, chunks: list[dict]) -> tuple[str, list[dict]]:
         key = _source_key(chunk)
 
         if key and key in seen_sources:
-            # This paper/document already has an index — reuse it
             remap[idx] = seen_sources[key]
         else:
-            # New source
             new_idx = len(sources) + 1
             if key:
                 seen_sources[key] = new_idx
@@ -81,49 +79,13 @@ def _extract_citations(text: str, chunks: list[dict]) -> tuple[str, list[dict]]:
                 "title": chunk.get("title"),
             })
 
-    # Step 2: Replace [old] → [new] in text (largest first to avoid partial matches)
     renumbered_text = text
     for old_idx in sorted(remap, reverse=True):
         renumbered_text = renumbered_text.replace(f"[{old_idx}]", f"[{remap[old_idx]}]")
 
-    # Step 3: Collapse duplicate adjacent citations like "[1], [1]" → "[1]"
     renumbered_text = re.sub(r"(\[\d+\])(?:[,\s]*\1)+", r"\1", renumbered_text)
 
     return renumbered_text, sources
-
-
-def _search_chunks(
-    os_client: OpenSearch,
-    query_text: str,
-    query_vector: list[float],
-    project_id: uuid.UUID,
-    size: int = 8,
-) -> list[dict]:
-    """Execute hybrid search against the chunks index."""
-    chunk_index = f"{settings.opensearch.index_name}-{settings.opensearch.chunk_index_suffix}"
-    query = build_chunk_search_query(
-        query_text=query_text,
-        query_vector=query_vector,
-        project_id=str(project_id),
-        size=size,
-    )
-
-    try:
-        response = os_client.search(
-            index=chunk_index,
-            body=query,
-            params={"search_pipeline": settings.opensearch.rrf_pipeline_name},
-        )
-    except Exception:
-        logger.exception("OpenSearch chunk search failed")
-        return []
-
-    chunks = []
-    for hit in response.get("hits", {}).get("hits", []):
-        source = hit["_source"]
-        source["_score"] = hit.get("_score", 0.0)
-        chunks.append(source)
-    return chunks
 
 
 def _build_chat_messages(
@@ -145,12 +107,13 @@ async def run_rag_pipeline(
     db: Session,
     os_client: OpenSearch,
     user_id: uuid.UUID,
-    project_id: uuid.UUID,
+    project: Project,
     session_id: uuid.UUID,
     user_query: str,
 ) -> AsyncGenerator[str, None]:
     """Async generator that yields SSE events for a RAG chat turn."""
 
+    project_id = project.id
     trace = create_rag_trace(user_id, session_id, project_id, user_query)
 
     try:
@@ -159,34 +122,41 @@ async def run_rag_pipeline(
 
         # 2. Load conversation history (last 10 messages, before the one we just saved)
         history = chat_repo.get_recent_messages(db, session_id, limit=10)
-        # Exclude the user message we just saved (it's the last one)
         history = history[:-1] if history else []
 
-        # 3. Embed query
-        t0 = time.time()
-        embed_span = trace.start_span(name="embed", input=user_query)
-        vectors = get_embeddings([user_query])
-        query_vector = vectors[0] if vectors else []
-        embed_ms = round((time.time() - t0) * 1000)
-        embed_span.update(
-            output={"dimensions": len(query_vector), "latency_ms": embed_ms}
-        )
-        embed_span.end()
+        # 3. Run LangGraph agent (guardrail → retrieve → grade → rewrite)
+        graph = build_retrieval_graph(os_client, trace)
 
-        # 4. Retrieve chunks
-        t0 = time.time()
-        retrieve_span = trace.start_span(name="retrieve", input=user_query)
-        chunks = _search_chunks(os_client, user_query, query_vector, project_id)
-        retrieve_ms = round((time.time() - t0) * 1000)
-        retrieve_span.update(
-            output={
-                "num_chunks": len(chunks),
-                "latency_ms": retrieve_ms,
-            }
-        )
-        retrieve_span.end()
+        agent_state = {
+            "query": user_query,
+            "project_id": str(project_id),
+            "research_goal": project.research_goal or "",
+            "initial_keywords": project.initial_keywords or [],
+            "conversation_history": [
+                {"role": msg.role, "content": msg.content} for msg in history
+            ],
+            "rewrite_count": 0,
+            "node_timings": {},
+        }
 
-        # 5. Build messages
+        result = await graph.ainvoke(agent_state)
+
+        # 4. If guardrail rejected → yield rejection and return
+        if not result.get("is_in_scope", True):
+            rejection = result.get("rejection_message", "This question is outside the scope of your research project.")
+            yield _sse("chunk", {"content": rejection})
+            yield _sse("done", {})
+            chat_repo.add_message(
+                db, session_id, "assistant", rejection, [],
+                {"guardrail_rejected": True, "node_timings": result.get("node_timings", {})},
+            )
+            trace.update(output=rejection)
+            trace.end()
+            return
+
+        # 5. Use graded chunks from the graph for generation
+        chunks = result.get("graded_chunks", [])
+
         system_message = build_system_message(chunks)
         messages = _build_chat_messages(system_message, history, user_query)
 
@@ -244,21 +214,27 @@ async def run_rag_pipeline(
             yield _sse("citations", {"sources": cited_sources})
         yield _sse("done", {})
 
-        # 9. Save assistant message (with renumbered text)
+        # 9. Run hallucination check (non-blocking, analytics only)
+        hallucination_result = await check_hallucination(full_response, chunks, trace)
+
+        # 10. Save assistant message with metadata
+        node_timings = result.get("node_timings", {})
         metadata = {
             "model": settings.openai_chat_model,
             "latency_ms": gen_ms,
             "input_tokens": input_tokens,
             "output_tokens": output_tokens,
-            "embed_ms": embed_ms,
-            "retrieve_ms": retrieve_ms,
-            "num_chunks": len(chunks),
+            "num_chunks_retrieved": len(result.get("retrieved_chunks", [])),
+            "num_chunks_graded": len(chunks),
+            "rewrite_count": result.get("rewrite_count", 0),
+            "rewritten_query": result.get("rewritten_query", ""),
+            "hallucination_check": hallucination_result,
+            "node_timings": node_timings,
         }
         chat_repo.add_message(
             db, session_id, "assistant", renumbered_text, cited_sources, metadata
         )
 
-        # Update trace output and end root span
         trace.update(output=full_response)
         trace.end()
 

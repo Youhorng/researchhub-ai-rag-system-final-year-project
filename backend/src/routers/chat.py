@@ -3,6 +3,8 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from opensearchpy import OpenSearch
+from sse_starlette.sse import EventSourceResponse
+
 from src.dependencies import CurrentUser, DbSession
 from src.models.project import Project
 from src.repositories import chat_repo
@@ -14,7 +16,6 @@ from src.schemas.chat import (
 )
 from src.services.opensearch.client import get_os_client
 from src.services.rag.pipeline import run_rag_pipeline
-from sse_starlette.sse import EventSourceResponse
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +92,7 @@ async def send_message(
     os_client: OpenSearch = Depends(get_os_client),
 ):
     """Send a message and stream the AI response via SSE."""
-    _get_project(db, project_id, current_user.id)
+    project = _get_project(db, project_id, current_user.id)
     session = chat_repo.get_session(db, session_id)
     if not session or session.project_id != project_id:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -106,7 +107,7 @@ async def send_message(
             db=db,
             os_client=os_client,
             user_id=current_user.id,
-            project_id=project_id,
+            project=project,
             session_id=session_id,
             user_query=body.content,
         )

@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from src.models.paper import Paper 
+from src.models.paper import Paper, ProjectPaper
 
 
 # Define a function to get paper from opensearch
@@ -26,3 +26,15 @@ def get_or_create(db: Session, arxiv_data: dict) -> Paper:
     db.refresh(new_paper)
     
     return new_paper
+
+
+def get_project_paper(db: Session, project_id, paper_id) -> ProjectPaper | None:
+    return db.query(ProjectPaper).filter_by(
+        project_id=project_id,
+        paper_id=paper_id,
+    ).first()
+
+
+def delete_project_paper(db: Session, project_paper: ProjectPaper) -> None:
+    db.delete(project_paper)
+    db.commit()

@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from src.exceptions import ForbiddenError, NotFoundError
 from src.models.project import Project, ProjectTopic
 from src.models.user import User
-from src.schemas.project import ProjectCreate, ProjectUpdate, TopicCreate
+from src.schemas.project import ProjectCreate, ProjectUpdate, TopicCreate, TopicUpdate
 
 # Configure the logging
 logger = logging.getLogger(__name__)
@@ -82,3 +82,29 @@ def list_topics(
 ) -> list[ProjectTopic]:
     get_project(db, current_user, project_id)  # ownership check
     return project_repo.list_topics_by_project(db, project_id)
+
+
+def get_topic(
+    db: Session, current_user: User, project_id, topic_id
+) -> ProjectTopic:
+    get_project(db, current_user, project_id)  # ownership check
+    topic = project_repo.get_topic_by_id(db, topic_id)
+    if not topic or topic.project_id != project_id or topic.status == "pruned":
+        raise NotFoundError("Topic", str(topic_id))
+    return topic
+
+
+def update_topic(
+    db: Session, current_user: User, project_id, topic_id, data: TopicUpdate
+) -> ProjectTopic:
+    topic = get_topic(db, current_user, project_id, topic_id)
+    updates = data.model_dump(exclude_unset=True)
+    return project_repo.update_topic(db, topic, **updates)
+
+
+def delete_topic(
+    db: Session, current_user: User, project_id, topic_id
+) -> None:
+    topic = get_topic(db, current_user, project_id, topic_id)
+    project_repo.prune_topic(db, topic)
+    logger.info("Pruned topic %s from project %s", topic_id, project_id)

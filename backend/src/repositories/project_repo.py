@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 from src.models.project import Project, ProjectTopic
@@ -114,3 +115,17 @@ def list_topics_by_project(db: Session, project_id) -> list[ProjectTopic]:
         .order_by(ProjectTopic.added_at.desc())
         .all()
     )
+
+
+def update_topic(db: Session, topic: ProjectTopic, **fields) -> ProjectTopic:
+    for key, value in fields.items():
+        setattr(topic, key, value)
+    db.commit()
+    db.refresh(topic)
+    return topic
+
+
+def prune_topic(db: Session, topic: ProjectTopic) -> None:
+    topic.status = "pruned"
+    topic.pruned_at = datetime.now(timezone.utc)
+    db.commit()

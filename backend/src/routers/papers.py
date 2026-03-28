@@ -7,6 +7,7 @@ from src.dependencies import CurrentUser, DbSession
 from src.models.paper import ProjectPaper
 from src.models.project import Project
 from src.schemas.papers import (
+    PaperDiscoverRequest,
     PaperResponse,
     PaperSearchRequest,
     PaperUpdateStatusRequest,
@@ -14,7 +15,11 @@ from src.schemas.papers import (
 )
 from src.services.indexing.hybrid_indexer import index_paper_chunks
 from src.services.opensearch.client import get_os_client
-from src.services.paper_service import search_and_suggest_papers
+from src.services.paper_service import (
+    discover_papers,
+    remove_paper_from_project,
+    search_and_suggest_papers,
+)
 
 
 # Configure the logging
@@ -47,10 +52,34 @@ async def search_papers(
         os_client=os_client,
         project=project,
         keywords=data.keywords,
-        limit=data.limit
+        limit=data.limit,
+        topic_id=data.topic_id
     )
     
     return suggested_papers
+
+
+# Discover papers endpoint (combined project + topic search)
+@router.post("/discover", response_model=list[PaperResponse])
+async def discover_papers_endpoint(
+    project_id: uuid.UUID,
+    data: PaperDiscoverRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+    os_client: OpenSearch = Depends(get_os_client),
+):
+    """Discover papers using combined project + topic search parameters."""
+
+    project = db.query(Project).filter_by(id=project_id, owner_id=current_user.id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    return discover_papers(
+        db=db,
+        os_client=os_client,
+        project=project,
+        limit=data.limit,
+    )
 
 
 # List the papers endpoint
@@ -105,18 +134,23 @@ async def update_paper_status(
     if not project_paper:
         raise HTTPException(status_code=404, detail="Paper not found in this project")
 
-    # Update the status
     from datetime import datetime, timezone
 
-    old_status = project_paper.status
-    project_paper.status = data.status
-    project_paper.status_updated_at = datetime.now(timezone.utc)
+    # Update status if provided
+    if data.status is not None:
+        old_status = project_paper.status
+        project_paper.status = data.status
+        project_paper.status_updated_at = datetime.now(timezone.utc)
 
-    # Update the project's denormalized paper count if status changed
-    if old_status != "accepted" and data.status == "accepted":
-        project.paper_count += 1
-    elif old_status == "accepted" and data.status != "accepted":
-        project.paper_count = max(project.paper_count - 1, 0)
+        # Update the project's denormalized paper count if status changed
+        if old_status != "accepted" and data.status == "accepted":
+            project.paper_count += 1
+        elif old_status == "accepted" and data.status != "accepted":
+            project.paper_count = max(project.paper_count - 1, 0)
+
+    # Update topic_id if provided
+    if data.topic_id is not None:
+        project_paper.topic_id = data.topic_id
 
     db.commit()
     db.refresh(project_paper)
@@ -132,3 +166,20 @@ async def update_paper_status(
             background_tasks.add_task(index_paper_chunks, paper_id, project_id)
 
     return project_paper
+
+
+# Remove paper from project endpoint
+@router.delete("/{paper_id}", status_code=204)
+async def remove_paper(
+    project_id: uuid.UUID,
+    paper_id: uuid.UUID,
+    db: DbSession,
+    current_user: CurrentUser,
+):
+    """Remove a paper from a project and clean up its chunks from OpenSearch."""
+
+    project = db.query(Project).filter_by(id=project_id, owner_id=current_user.id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    remove_paper_from_project(db=db, project=project, paper_id=paper_id)

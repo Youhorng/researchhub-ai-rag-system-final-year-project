@@ -48,7 +48,8 @@ _Core CRUD before any AI features._
 
 - [x] `schemas/project.py`:
   - `ProjectCreate` — `name`, `description`, `research_goal`, `arxiv_categories[]`, `initial_keywords[]`, `year_from`, `year_to`
-  - `ProjectUpdate` — `name?`, `description?`, `status?` (`active` | `archived`) + validator
+  - `ProjectUpdate` — `name?`, `description?`, `status?`, `research_goal?`, `initial_keywords[]?`, `arxiv_categories[]?`, `year_from?`, `year_to?` + validator
+  - `TopicUpdate` — `name?`, `keywords[]?`, `arxiv_categories[]?`, `year_from?`, `year_to?`
   - `ProjectResponse` — all `projects` columns including `paper_count`, `document_count`, `last_synced_at`, `created_at`, `updated_at`
   - `TopicCreate` — `name`, `arxiv_categories[]`, `keywords[]`, `year_from`, `year_to`
   - `TopicResponse` — all `project_topics` columns
@@ -70,6 +71,8 @@ _Core CRUD before any AI features._
   - `create_topic(db, project_id, **fields) -> ProjectTopic`
   - `get_topic_by_id(db, topic_id) -> ProjectTopic | None`
   - `list_topics_by_project(db, project_id) -> list[ProjectTopic]`
+  - `update_topic(db, topic, **fields) -> ProjectTopic`
+  - `prune_topic(db, topic) -> None` — soft-delete (status → "pruned")
 
 ### 2.4 Project Service
 
@@ -81,6 +84,9 @@ _Core CRUD before any AI features._
   - `delete_project(db, current_user, project_id) -> None`
   - `add_topic(db, current_user, project_id, data: TopicCreate) -> ProjectTopic`
   - `list_topics(db, current_user, project_id) -> list[ProjectTopic]`
+  - `get_topic(db, current_user, project_id, topic_id) -> ProjectTopic` — ownership + existence + not-pruned check
+  - `update_topic(db, current_user, project_id, topic_id, data: TopicUpdate) -> ProjectTopic`
+  - `delete_topic(db, current_user, project_id, topic_id) -> None` — soft-delete
 
 ### 2.5 Projects Router
 
@@ -92,6 +98,8 @@ _Core CRUD before any AI features._
   - `DELETE /projects/{project_id}` — hard delete (cascades in DB)
   - `POST   /projects/{project_id}/topics` — add a topic to a project
   - `GET    /projects/{project_id}/topics` — list all active topics for a project
+  - `PATCH  /projects/{project_id}/topics/{topic_id}` — edit topic fields
+  - `DELETE /projects/{project_id}/topics/{topic_id}` — soft-delete (status → "pruned")
 
 - [x] `projects_router` mounted in `main.py`
 
@@ -138,9 +146,9 @@ _The full project creation flow — requires Phase 3 to have data._
 
 ### 4.1 Keyword Extraction (Ollama)
 
-- [ ] `services/ollama/client.py` — HTTP client for Ollama `/api/generate`, reads `OLLAMA_HOST`, `OLLAMA_MODEL`, `OLLAMA_TIMEOUT`
-- [ ] `services/ollama/keyword_extractor.py` — prompt Ollama to extract 8–12 candidate keywords from `research_goal` text; parse JSON list from response
-- [ ] `routers/projects.py` — add `POST /projects/suggest-keywords`:
+- [x] `services/ollama/client.py` — HTTP client for Ollama `/api/generate`, reads `OLLAMA_HOST`, `OLLAMA_MODEL`, `OLLAMA_TIMEOUT`
+- [x] `services/ollama/keyword_extractor.py` — prompt Ollama to extract 8–12 candidate keywords from `research_goal` text; parse JSON list from response
+- [x] `routers/projects.py` — add `POST /projects/suggest-keywords`:
   - Body: `{ "research_goal": str }`
   - Calls Ollama keyword extractor
   - Returns `{ "keywords": list[str] }`
@@ -148,53 +156,57 @@ _The full project creation flow — requires Phase 3 to have data._
 
 ### 4.2 Paper Search Service
 
-- [ ] `services/opensearch/query_builder.py` — build hybrid OpenSearch query:
+- [x] `services/opensearch/query_builder.py` — build hybrid OpenSearch query:
   - BM25 on `title + abstract` using `initial_keywords`
   - KNN on `abstract_vector` using embedded `research_goal` (via OpenAI `text-embedding-3-small`)
   - RRF pipeline combining both
   - Hard filters: `categories` (from `arxiv_categories[]`), date range (`year_from`/`year_to`)
   - Exclude papers already in `project_papers` for this project
-- [ ] `services/paper_service.py`:
-  - `search_papers(db, project) -> list[PaperResult]` — query `arxiv-metadata`, return top-N
-  - `suggest_papers(db, project) -> list[ProjectPaper]` — insert results as `project_papers` with `status=suggested`
-- [ ] `repositories/paper_repo.py`:
+- [x] `services/paper_service.py`:
+  - `search_and_suggest_papers(db, os_client, project, keywords, limit)` — query `arxiv-metadata`, return top-N, insert as `project_papers` with `status=suggested`
+  - `discover_papers(db, os_client, project, limit)` — combined project + all active topics' keywords/categories/date range search, deduplicates, filters already-linked papers
+  - `remove_paper_from_project(db, project, paper_id)` — delete OpenSearch chunks + Postgres `ProjectPaper` row + decrement `paper_count`
+- [x] `repositories/paper_repo.py`:
   - `get_or_create(db, arxiv_data) -> Paper` — upsert into `papers` table by `arxiv_id`
-  - `list_by_project(db, project_id, status=None) -> list[ProjectPaper]`
-  - `update_status(db, project_paper_id, status) -> ProjectPaper`
-- [ ] `schemas/paper.py`:
+  - `get_project_paper(db, project_id, paper_id) -> ProjectPaper | None`
+  - `delete_project_paper(db, project_paper) -> None`
+- [x] `schemas/paper.py`:
   - `PaperResponse` — `id`, `arxiv_id`, `title`, `authors[]`, `abstract`, `categories[]`, `published_at`, `pdf_url`
   - `ProjectPaperResponse` — `id`, `paper`, `status`, `relevance_score`, `added_by`, `added_at`
+  - `PaperDiscoverRequest` — `limit` (default 20)
 
 ### 4.3 Paper Accept / Reject Endpoint
 
-- [ ] `routers/papers.py` — mount at `/api/v1`:
+- [x] `routers/papers.py` — mount at `/api/v1`:
   - `POST   /projects/{project_id}/papers/search` — trigger paper discovery search, insert suggestions
+  - `POST   /projects/{project_id}/papers/discover` — combined project + topic search ("Find Papers" button)
   - `GET    /projects/{project_id}/papers` — list papers for a project (filter by status)
   - `PATCH  /projects/{project_id}/papers/{paper_id}` — update status `suggested → accepted | rejected`
     - On `accepted`: trigger background task (4.4 below), increment `projects.paper_count`
     - On `rejected`: no side effects
+  - `DELETE /projects/{project_id}/papers/{paper_id}` — remove paper + clean up OpenSearch chunks
 
 ### 4.4 Full-Text Indexing Pipeline
 
-- [ ] `services/pdf_parser/parser.py` — docling: fetch PDF from URL → extract raw text
-- [ ] `services/indexing/text_chunker.py` — split text into 600-char chunks with 100-char overlap, respect `min_chunk_size=100`, optionally section-based
-- [ ] `services/indexing/hybrid_indexer.py` — orchestrate: chunk list → batch embed via OpenAI `text-embedding-3-small` → bulk index into `arxiv-chunks` with `paper_id`, `project_id`, `arxiv_id`; set `papers.chunks_indexed = True`
+- [x] `services/pdf_parser/parser.py` — docling: fetch PDF from URL → extract raw text
+- [x] `services/indexing/text_chunker.py` — split text into 600-char chunks with 100-char overlap, respect `min_chunk_size=100`, optionally section-based
+- [x] `services/indexing/hybrid_indexer.py` — orchestrate: chunk list → batch embed via OpenAI `text-embedding-3-small` → bulk index into `arxiv-chunks` with `paper_id`, `project_id`, `arxiv_id`; set `papers.chunks_indexed = True`
 
 ### 4.5 PDF Upload
 
-- [ ] `services/storage/minio.py` — MinIO client: `upload(bucket, key, file)`, `download(bucket, key)`, `presign_url(bucket, key)`, reads `MINIO_*` settings
-- [ ] `repositories/document_repo.py`:
+- [x] `services/storage/minio.py` — MinIO client: `upload(bucket, key, file)`, `download(bucket, key)`, `presign_url(bucket, key)`, reads `MINIO_*` settings
+- [x] `repositories/document_repo.py`:
   - `create(db, project_id, **fields) -> Document`
   - `get_by_id(db, doc_id) -> Document | None`
   - `list_by_project(db, project_id) -> list[Document]`
   - `delete(db, document) -> None`
-- [ ] `schemas/document.py` — `DocumentResponse`: `id`, `project_id`, `title`, `original_filename`, `file_size_bytes`, `chunks_indexed`, `uploaded_at`
-- [ ] `routers/documents.py` — mount at `/api/v1`:
+- [x] `schemas/document.py` — `DocumentResponse`: `id`, `project_id`, `title`, `original_filename`, `file_size_bytes`, `chunks_indexed`, `uploaded_at`
+- [x] `routers/documents.py` — mount at `/api/v1`:
   - `POST   /projects/{project_id}/documents` — stream upload to MinIO, insert `documents` row, trigger background indexing task, increment `projects.document_count`
   - `GET    /projects/{project_id}/documents` — list with `chunks_indexed` status
   - `DELETE /projects/{project_id}/documents/{document_id}` — remove from MinIO + PostgreSQL + OpenSearch (delete by `document_id` filter)
 
-- [ ] Mount `papers_router` and `documents_router` in `main.py`
+- [x] Mount `papers_router` and `documents_router` in `main.py`
 
 **Deliverable:** Full project creation wizard works end-to-end. User accepts/rejects papers (from `arxiv-metadata`). Uploads PDFs. Both are indexed into `arxiv-chunks`. `project_papers` and `documents` rows reflect correct status.
 
@@ -204,21 +216,17 @@ _The full project creation flow — requires Phase 3 to have data._
 
 _Core AI feature. Requires Phase 4 to have `arxiv-chunks` populated._
 
-### 5.1 Redis Cache
+### 5.1 Hybrid Search Endpoint
 
-- [ ] `services/cache/redis.py` — Redis client: `get(key)`, `set(key, value, ttl)`, `delete(key)`; reads `REDIS__*` settings; cache key format `{project_id}:{hash(query)}`
-
-### 5.2 Hybrid Search Endpoint
-
-- [ ] `routers/search.py` — mount at `/api/v1`:
+- [x] `routers/search.py` — mount at `/api/v1`:
   - `POST /projects/{project_id}/search` — body `{ "query": str, "top_k": int }`
   - Embed query via OpenAI `text-embedding-3-small` → BM25 + KNN against `arxiv-chunks` scoped to `project_id` + RRF
   - Check Redis cache first; cache result with 6-hour TTL
   - Returns ranked chunk list with `paper_id`, `title`, `chunk_text`, `relevance_score`
 
-### 5.3 RAG Pipeline
+### 5.2 RAG Pipeline
 
-- [ ] `services/rag/pipeline.py`:
+- [x] `services/rag/pipeline.py`:
   1. Embed user query (OpenAI `text-embedding-3-small`)
   2. Hybrid search `arxiv-chunks` scoped to `project_id` → top-K chunks
   3. Build prompt: `[system context] + [retrieved chunks with source labels] + [user query]`
@@ -226,29 +234,29 @@ _Core AI feature. Requires Phase 4 to have `arxiv-chunks` populated._
   5. Return answer text + `cited_sources` JSON array (per `DB_SCHEMA.md` format: `paper_id`, `document_id`, `arxiv_id`, `title`, `authors[]`, `chunk_text`, `relevance_score`)
   6. Trace entire pipeline via Langfuse (embed span + generate span)
 
-### 5.4 Chat Router
+### 5.3 Chat Router
 
-- [ ] `repositories/chat_repo.py`:
+- [x] `repositories/chat_repo.py`:
   - `create_session(db, project_id, user_id, title) -> ChatSession`
   - `get_session(db, session_id) -> ChatSession | None`
   - `list_sessions(db, project_id, user_id) -> list[ChatSession]`
   - `add_message(db, session_id, role, content, cited_sources, metadata) -> ChatMessage`
   - `list_messages(db, session_id, limit, offset) -> list[ChatMessage]`
-- [ ] `schemas/chat.py`:
+- [x] `schemas/chat.py`:
   - `ChatSessionResponse` — `id`, `project_id`, `user_id`, `title`, `created_at`, `updated_at`
   - `ChatRequest` — `message: str`
   - `ChatMessageResponse` — `id`, `session_id`, `role`, `content`, `cited_sources`, `created_at`
-- [ ] `routers/chat.py` — mount at `/api/v1`:
+- [x] `routers/chat.py` — mount at `/api/v1`:
   - `POST /projects/{project_id}/chat/sessions` — create chat session
   - `GET  /projects/{project_id}/chat/sessions` — list sessions for project
   - `GET  /projects/{project_id}/chat/sessions/{session_id}/messages` — paginated history
   - `POST /projects/{project_id}/chat/sessions/{session_id}/messages` — send message → RAG pipeline → save both user + assistant turns → return `ChatMessageResponse` with `cited_sources`
 
-### 5.5 Observability
+### 5.4 Observability
 
-- [ ] `services/langfuse/tracer.py` — Langfuse client wrapper; `trace_span(name, input, output, metadata)` decorator for Jina embed calls and Ollama generate calls
+- [x] `services/langfuse/tracer.py` — Langfuse client wrapper; `trace_span(name, input, output, metadata)` decorator for Jina embed calls and Ollama generate calls
 
-- [ ] Mount `search_router` and `chat_router` in `main.py`
+- [x] Mount `search_router` and `chat_router` in `main.py`
 
 **Deliverable:** Can chat with a project's papers. Answers include cited sources. Full pipeline traces visible in Langfuse at `http://localhost:3001`.
 
@@ -260,71 +268,37 @@ _Enhanced reasoning pipeline. Replaces or wraps the simple RAG pipeline from Pha
 
 ### 6.1 Agent State + Prompts
 
-- [ ] `services/agents/state.py` — `AgentState` TypedDict: `query`, `project_id`, `retrieved_chunks`, `graded_chunks`, `rewritten_query`, `answer`, `cited_sources`, `is_in_scope`
-- [ ] `services/agents/prompts.py` — prompt templates for: guardrail check, document grading (relevant/not relevant), query rewrite, final answer generation
+- [x] `services/agents/state.py` — `AgentState` TypedDict: `query`, `project_id`, `retrieved_chunks`, `graded_chunks`, `rewritten_query`, `is_in_scope`, `rewrite_count`, `node_timings`
+- [x] `services/agents/prompts.py` — prompt templates for: guardrail check, document grading (batch), query rewrite, hallucination check
 
 ### 6.2 Agent Nodes
 
-- [ ] `services/agents/nodes/guardrail.py` — Ollama: is this query on-topic for the project? Returns `is_in_scope: bool`
-- [ ] `services/agents/nodes/retrieve.py` — hybrid search wrapper (same as Phase 5 search), scoped to `project_id`, returns chunks
-- [ ] `services/agents/nodes/grade_docs.py` — Ollama: score each chunk as `relevant` / `not_relevant`; filter to relevant only
-- [ ] `services/agents/nodes/rewrite_query.py` — Ollama: rephrase + expand query when graded chunks are poor; re-runs retrieve node
-- [ ] `services/agents/nodes/generate_answer.py` — Ollama: final answer generation from relevant chunks; formats `cited_sources`
+- [x] `services/agents/nodes/guardrail.py` — OpenAI gpt-4o-mini: is this query on-topic for the project? Returns `is_in_scope: bool`
+- [x] `services/agents/nodes/retrieve.py` — hybrid search wrapper (same as Phase 5 search), scoped to `project_id`, returns chunks
+- [x] `services/agents/nodes/grade_docs.py` — OpenAI gpt-4o-mini: batch-grade all chunks as relevant/not relevant; filter to relevant only
+- [x] `services/agents/nodes/rewrite_query.py` — OpenAI gpt-4o-mini: rephrase + expand query when graded chunks are poor; re-runs retrieve node
+- [x] `services/agents/nodes/hallucination_check.py` — post-generation groundedness check; stores score in message metadata
 
 ### 6.3 LangGraph Wiring
 
-- [ ] `services/agents/graph.py` — `StateGraph` wiring:
+- [x] `services/agents/graph.py` — `StateGraph` wiring:
   - `guardrail` → if out of scope → END (return polite rejection message)
   - `guardrail` → if in scope → `retrieve`
   - `retrieve` → `grade_docs`
-  - `grade_docs` → if relevant chunks exist → `generate_answer`
+  - `grade_docs` → if relevant chunks exist → END (return graded_chunks to pipeline)
   - `grade_docs` → if no relevant chunks → `rewrite_query` → `retrieve` (max 1 retry)
-  - `generate_answer` → END
-- [ ] Connect agentic graph to `chat.py` router — replace direct RAG pipeline call with `graph.invoke(AgentState(...))`
-- [ ] Trace each LangGraph node as a separate Langfuse span
+- [x] Connect agentic graph to `chat.py` router — pipeline runs graph for decisions, then streams generation with existing SSE code
+- [x] Trace each LangGraph node as a separate Langfuse span
 
 **Deliverable:** Chat uses multi-step agentic pipeline. Guardrail rejects off-topic queries. Query rewriting improves recall on poor first retrieval.
 
 ---
 
-## Phase 7 — Living Knowledge Base
-
-_Project stays fresh over time._
-
-### 7.1 Sync Service
-
-- [ ] `services/sync_service.py`:
-  - `sync_topic(db, project, topic) -> SyncEvent` — re-run `topic.last_query` against `arxiv-metadata` → new papers not already in `project_papers` → insert as `status=suggested` → record `SyncEvent(event_type="sync", papers_added=N)`
-  - `suggest_new_papers(db, project, topic) -> list[ProjectPaper]`
-
-### 7.2 Drift Service
-
-- [ ] `services/drift_service.py`:
-  - `score_paper_relevance(paper, topic) -> float` — embed `topic.keywords` → cosine similarity vs paper's `abstract_vector` in `arxiv-metadata`
-  - `detect_drift(db, project) -> list[ProjectPaper]` — flag accepted papers scoring < 30% similarity; update `project_papers` with a `drift_flagged` field or store in `sync_events` details
-
-### 7.3 Sync + Drift Router
-
-- [ ] Add to `routers/projects.py`:
-  - `POST /projects/{project_id}/topics/{topic_id}/sync` — trigger `sync_topic`, return `SyncEvent`
-  - `GET  /projects/{project_id}/sync-events` — list all `sync_events` for a project (audit trail)
-  - `GET  /projects/{project_id}/drift` — return list of drift-flagged papers
-
-### 7.4 Airflow DAGs
-
-- [ ] `airflow/dags/topic_daily_sync.py` — daily: for each active project topic → run `sync_topic` → record `SyncEvent(triggered_by="scheduler")`
-- [ ] `airflow/dags/drift_detection.py` — weekly: for each active project → run `detect_drift` → record `SyncEvent(event_type="drift_detected")`
-- [ ] `airflow/dags/index_pending_papers.py` — every 6 hours: find `project_papers` with `accepted` status and `papers.chunks_indexed=False`, or `documents` with `chunks_indexed=False` → run full indexing pipeline
-
-**Deliverable:** Topics can be synced manually or automatically. Low-relevance papers are flagged for removal. Sync history visible per project.
-
----
-
-## Phase 8 — Frontend
+## Phase 7 — Frontend
 
 _React + TypeScript UI._
 
-### 8.1 Setup + API Layer
+### 7.1 Setup + API Layer
 
 - [ ] Install dependencies: `@clerk/clerk-react`, `react-router-dom`, `@tanstack/react-query`, `axios`, `tailwindcss`, `shadcn/ui`
 - [ ] `api/client.ts` — axios instance with base URL; request interceptor attaches `Authorization: Bearer <clerk_token>` from `useAuth().getToken()`
@@ -334,14 +308,14 @@ _React + TypeScript UI._
 - [ ] `api/chat.ts` — `createSession`, `listSessions`, `listMessages`, `sendMessage`
 - [ ] `types/index.ts` — TypeScript types mirroring all FastAPI `*Response` schemas
 
-### 8.2 Pages
+### 7.2 Pages
 
 - [ ] `pages/Dashboard.tsx` — list projects (card grid), create button, archive toggle
 - [ ] `pages/ProjectDetail.tsx` — tabs: Papers, Documents, Topics, Sync History
 - [ ] `pages/Chat.tsx` — chat interface left pane + citations panel right pane
 - [ ] `pages/Search.tsx` — free-text hybrid search within a project, ranked results
 
-### 8.3 Project Creation Wizard
+### 7.3 Project Creation Wizard
 
 The wizard captures the same fields as `ProjectCreate` schema across 5 steps:
 
@@ -356,30 +330,14 @@ The wizard captures the same fields as `ProjectCreate` schema across 5 steps:
 
 ---
 
-## Phase 9 — CI/CD + Deployment
+## Phase 8 — CI/CD + Deployment
 
 _Last, when code is stable._
 
 - [ ] `.github/workflows/ci.yml` — on PR: lint with `ruff`, run `pytest` against test DB
 - [ ] `.github/workflows/cd.yml` — on merge to `main`: build Docker images + push to registry + deploy
 - [ ] Populate `.env.production` with all required secrets for deployment
-
----
-
-## Summary
-
-| Phase | What                 | Key Deliverable                                                                        |
-| ----- | -------------------- | -------------------------------------------------------------------------------------- |
-| 1 ✅  | Foundation           | Server runs, auth works, DB tables + migrations exist                                  |
-| 2     | Projects API         | Create/list/archive projects + topics via API                                          |
-| 3     | ArXiv Data (Airflow) | `arxiv-metadata` index populated, both OpenSearch indices ready                        |
-| 4     | Discovery + Indexing | Full project creation wizard (Ollama keywords → hybrid search → accept/reject → index) |
-| 5     | RAG Chat             | Chat with papers, cited sources returned, Langfuse traces                              |
-| 6     | Agentic RAG          | LangGraph pipeline: guardrail → retrieve → grade → rewrite → generate                  |
-| 7     | Living KB            | Topic sync, drift detection, Airflow scheduled DAGs                                    |
-| 8     | Frontend             | React wizard UI, dashboard, chat interface                                             |
-| 9     | CI/CD                | Automated lint, test, build, deploy pipeline                                           |
-
+                                      |
 ---
 
 ## Service Dependency Map
@@ -388,12 +346,10 @@ _Last, when code is stable._
 Phase 1  →  Phase 2  →  Phase 4  →  Phase 5  →  Phase 6
                 ↑              ↑
            Phase 3 (data)  Phase 4 (chunks)
-                                    ↓
-                               Phase 7 (living KB)
-                                    ↓
-                               Phase 8 (UI)
-                                    ↓
-                               Phase 9 (CI/CD)
+                                                    ↓
+                                               Phase 7 (UI)
+                                                    ↓
+                                               Phase 8 (CI/CD)
 ```
 
 **Critical path:** Phase 3 must have `arxiv-metadata` populated before Phase 4's paper search works. Phase 4 must have `arxiv-chunks` populated before Phase 5's RAG chat works.
