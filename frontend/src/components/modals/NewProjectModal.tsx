@@ -228,8 +228,7 @@ export default function NewProjectModal({ isOpen, onClose }: NewProjectModalProp
       if (!res.ok) throw new Error('Failed to generate keywords');
       const data = await res.json();
       setSuggestedKeywords(data.keywords || []);
-      // Auto-select all by default to make it easy for the user
-      setSelectedKeywords(new Set(data.keywords || []));
+      setSelectedKeywords(new Set());
     } catch (err: any) {
       setError(err.message || 'Error suggesting keywords.');
     } finally {
@@ -356,7 +355,7 @@ export default function NewProjectModal({ isOpen, onClose }: NewProjectModalProp
 
             {suggestedKeywords.length > 0 && (
               <div className="pt-2">
-                <p className="text-xs font-medium text-zinc-300 mb-2">Select keywords for your search query:</p>
+                <p className="text-xs font-medium text-zinc-300 mb-2">Click to select keywords for your search query:</p>
                 <div className="flex flex-wrap gap-2">
                   {suggestedKeywords.map(kw => (
                     <button
@@ -364,9 +363,9 @@ export default function NewProjectModal({ isOpen, onClose }: NewProjectModalProp
                       type="button"
                       onClick={() => toggleKeyword(kw)}
                       className={`px-3 py-1.5 rounded-lg text-sm transition-all border ${
-                        selectedKeywords.has(kw) 
-                          ? 'bg-primary-gradient border-white/40 ring-2 ring-white text-white shadow-lg' 
-                          : 'bg-primary-gradient border-transparent text-white/80 hover:text-white opacity-60 hover:opacity-100 shadow-sm'
+                        selectedKeywords.has(kw)
+                          ? 'bg-primary-gradient border-white/40 ring-2 ring-white text-white shadow-lg'
+                          : 'bg-surface_container_high border-zinc-600 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500'
                       }`}
                     >
                       {kw}

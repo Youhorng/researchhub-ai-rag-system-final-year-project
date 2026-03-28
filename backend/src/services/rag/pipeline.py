@@ -30,23 +30,28 @@ from src.repositories import chat_repo
 from src.services.agents.graph import build_retrieval_graph
 from src.services.agents.nodes.hallucination_check import check_hallucination
 from src.services.langfuse.tracer import create_rag_trace
-from src.services.rag.prompts import build_system_message
+from src.services.rag.prompts import (
+    build_system_message,
+    group_chunks_by_source,
+    merge_duplicate_sources,
+)
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
 
 def _sse(event_type: str, data: dict) -> str:
-    """Format a single SSE event."""
+    """Return JSON payload for EventSourceResponse (it handles SSE framing)."""
     payload = {"type": event_type, **data}
-    return f"data: {json.dumps(payload)}\n\n"
+    return json.dumps(payload)
 
 
 def _source_key(chunk: dict) -> str:
     """Return a dedup key for a chunk — group by paper or document."""
     paper_id = chunk.get("paper_id", "")
     document_id = chunk.get("document_id", "")
-    return paper_id or document_id or ""
+    arxiv_id = chunk.get("arxiv_id", "")
+    return paper_id or document_id or arxiv_id or ""
 
 
 def _extract_citations(text: str, chunks: list[dict]) -> tuple[str, list[dict]]:
@@ -156,8 +161,10 @@ async def run_rag_pipeline(
 
         # 5. Use graded chunks from the graph for generation
         chunks = result.get("graded_chunks", [])
+        grouped_sources = group_chunks_by_source(chunks)
+        grouped_sources = merge_duplicate_sources(grouped_sources)
 
-        system_message = build_system_message(chunks)
+        system_message = build_system_message(chunks, grouped_sources=grouped_sources)
         messages = _build_chat_messages(system_message, history, user_query)
 
         # 6. Stream generation
@@ -206,8 +213,32 @@ async def run_rag_pipeline(
         )
         gen_span.end()
 
-        # 7. Extract citations and renumber sequentially
-        renumbered_text, cited_sources = _extract_citations(full_response, chunks)
+        # 7. Build cited_sources and renumber to fill gaps (e.g. [1][3] → [1][2])
+        cited_sources = []
+        remap: dict[int, int] = {}
+        for i, src in enumerate(grouped_sources, 1):
+            marker = f"[{i}]"
+            if marker in full_response:
+                new_idx = len(cited_sources) + 1
+                remap[i] = new_idx
+                cited_sources.append({
+                    "index": new_idx,
+                    "paper_id": src.get("paper_id"),
+                    "document_id": src.get("document_id"),
+                    "arxiv_id": src.get("arxiv_id"),
+                    "title": src.get("title"),
+                })
+
+        # Renumber in text: use temp placeholders to avoid collisions
+        renumbered_text = full_response
+        for old_idx in sorted(remap, reverse=True):
+            renumbered_text = renumbered_text.replace(
+                f"[{old_idx}]", f"[__CITE_{remap[old_idx]}__]"
+            )
+        for new_idx in range(1, len(cited_sources) + 1):
+            renumbered_text = renumbered_text.replace(
+                f"[__CITE_{new_idx}__]", f"[{new_idx}]"
+            )
 
         # 8. Yield citations + done
         if cited_sources:

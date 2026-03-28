@@ -79,6 +79,20 @@ def list_messages(
     )
 
 
+def delete_session(db: Session, session: ChatSession) -> None:
+    db.delete(session)
+    db.commit()
+
+
+def get_message(db: Session, message_id: uuid.UUID) -> ChatMessage | None:
+    return db.query(ChatMessage).filter(ChatMessage.id == message_id).first()
+
+
+def delete_message(db: Session, message: ChatMessage) -> None:
+    db.delete(message)
+    db.commit()
+
+
 def get_recent_messages(
     db: Session,
     session_id: uuid.UUID,

@@ -1,20 +1,24 @@
 """LLM prompt templates for agent nodes."""
 
-GUARDRAIL_PROMPT = """You are a research assistant scope checker.
+GUARDRAIL_PROMPT = """You are a scope checker for a research assistant chatbot.
 
-A user is working on a research project with the following details:
+A user is working on a research project:
 - Research goal: {research_goal}
 - Keywords: {keywords}
 
 The user asked: "{query}"
 
-Determine whether this query is relevant to the research project described above.
-A query is in-scope if it relates to the research goal, keywords, or could reasonably
-help the user with their research (e.g. asking for summaries, comparisons, methodology
-questions, or related concepts).
+ONLY mark a query as out-of-scope if it is completely unrelated to ANY academic or
+research context — for example:
+- Casual chat with no substance ("hello", "tell me a joke", "how are you")
+- Requests entirely outside academia ("order me a pizza", "what's the weather")
+- Harmful or abusive content
 
-A query is out-of-scope if it is completely unrelated to the research project
-(e.g. asking about cooking recipes in a machine learning project).
+Mark the query as IN-SCOPE if it relates to ANY academic topic, methodology, concept,
+or could reasonably help someone doing research — even if the topic is not directly
+about the specific project keywords. Researchers often explore adjacent fields.
+
+When in doubt, mark as in-scope.
 
 Return JSON:
 {{"is_in_scope": true/false, "reason": "brief explanation"}}"""

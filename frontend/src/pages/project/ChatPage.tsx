@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { useOutletContext, useParams } from 'react-router-dom';
 import { useAuth } from '@clerk/react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import {
-  Sparkles, Send, Plus, Loader2, MessageSquare, BookOpen, X, ChevronRight
+  Sparkles, Send, Plus, Loader2, MessageSquare, BookOpen, X, ChevronRight, Trash2
 } from 'lucide-react';
 
 interface ChatSession {
@@ -50,6 +52,10 @@ export default function ChatPage() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
   const [streamingCitations, setStreamingCitations] = useState<CitedSource[]>([]);
+
+  // Session delete state
+  const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
+  const [sessionToDelete, setSessionToDelete] = useState<string | null>(null);
 
   // UI state
   const [showSidebar, setShowSidebar] = useState(true);
@@ -267,17 +273,88 @@ export default function ChatPage() {
     }
   };
 
+  // Deduplicate citations by title (groups chunks from the same paper)
+  const deduplicateCitations = (citations: CitedSource[]): CitedSource[] => {
+    const seen = new Map<string, CitedSource>();
+    for (const source of citations) {
+      const key = source.paper_id || source.document_id || source.arxiv_id || source.title || '';
+      if (key && seen.has(key)) continue;
+      seen.set(key || `_${seen.size}`, { ...source, index: seen.size + 1 });
+    }
+    return Array.from(seen.values());
+  };
+
   // Show citations for a message
   const handleShowCitations = (citations: CitedSource[]) => {
-    setSelectedMessageCitations(citations);
+    setSelectedMessageCitations(deduplicateCitations(citations));
     setShowCitations(true);
   };
 
-  // Format message content with citation markers
-  const formatContent = (content: string) => {
-    // Replace [N] with styled citation markers
-    return content.replace(/\[(\d+)\]/g, (_, num) => `[${num}]`);
+  // Delete a session
+  const handleDeleteSession = async (sessionId: string) => {
+    setDeletingSessionId(sessionId);
+    try {
+      const token = await getToken();
+      const res = await fetch(`${apiUrl}/projects/${projectId}/chat/sessions/${sessionId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok || res.status === 204) {
+        setSessions(prev => prev.filter(s => s.id !== sessionId));
+        if (activeSessionId === sessionId) {
+          setActiveSessionId(null);
+          setMessages([]);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to delete session', err);
+    } finally {
+      setDeletingSessionId(null);
+      setSessionToDelete(null);
+    }
   };
+
+  // Preprocess markdown to fix broken numbered lists
+  // Handles: "1.\n**Bold:**", "1. \n**Bold:**", "1.\n\n**Bold:**"
+  const preprocessMarkdown = (content: string) => {
+    return content.replace(/(\d+)\.\s*\n+\s*\*\*/g, '$1. **');
+  };
+
+  // Render markdown content
+  const renderMarkdown = (content: string) => (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      components={{
+        p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+        strong: ({ children }) => <strong className="font-semibold text-white">{children}</strong>,
+        em: ({ children }) => <em className="italic">{children}</em>,
+        ul: ({ children }) => <ul className="list-disc list-inside mb-2 space-y-1">{children}</ul>,
+        ol: ({ children }) => <ol className="list-decimal list-inside mb-2 space-y-1">{children}</ol>,
+        li: ({ children }) => <li className="text-sm">{children}</li>,
+        h1: ({ children }) => <h1 className="text-base font-bold text-white mb-2">{children}</h1>,
+        h2: ({ children }) => <h2 className="text-sm font-bold text-white mb-1.5">{children}</h2>,
+        h3: ({ children }) => <h3 className="text-sm font-semibold text-white mb-1">{children}</h3>,
+        code: ({ children, className }) => {
+          const isBlock = className?.includes('language-');
+          return isBlock ? (
+            <pre className="bg-surface_container_lowest p-3 rounded-lg border border-[#212c43] overflow-x-auto my-2">
+              <code className="text-xs text-zinc-300">{children}</code>
+            </pre>
+          ) : (
+            <code className="bg-surface_container_lowest px-1.5 py-0.5 rounded text-xs text-indigo-300 border border-[#212c43]">{children}</code>
+          );
+        },
+        blockquote: ({ children }) => (
+          <blockquote className="border-l-2 border-indigo-500/40 pl-3 my-2 text-zinc-400 italic">{children}</blockquote>
+        ),
+        a: ({ href, children }) => (
+          <a href={href} target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:text-indigo-300 underline">{children}</a>
+        ),
+      }}
+    >
+      {preprocessMarkdown(content)}
+    </ReactMarkdown>
+  );
 
   return (
     <div className="flex h-[calc(100vh-7.5rem)] gap-0 animate-in fade-in duration-300">
@@ -305,23 +382,34 @@ export default function ChatPage() {
               </div>
             ) : (
               sessions.map(session => (
-                <button
+                <div
                   key={session.id}
-                  onClick={() => setActiveSessionId(session.id)}
-                  className={`w-full text-left p-3 rounded-xl text-sm transition-all truncate ${
+                  className={`group/session w-full text-left p-3 rounded-xl text-sm transition-all ${
                     activeSessionId === session.id
                       ? 'bg-surface_container_high text-white font-medium'
                       : 'text-zinc-400 hover:text-zinc-200 hover:bg-surface_container'
                   }`}
                 >
                   <div className="flex items-center gap-2">
-                    <MessageSquare size={14} className="flex-shrink-0" />
-                    <span className="truncate">{session.title || 'New Conversation'}</span>
+                    <button
+                      onClick={() => setActiveSessionId(session.id)}
+                      className="flex items-center gap-2 flex-1 min-w-0 text-left"
+                    >
+                      <MessageSquare size={14} className="flex-shrink-0" />
+                      <span className="truncate">{session.title || 'New Conversation'}</span>
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setSessionToDelete(session.id); }}
+                      className="opacity-0 group-hover/session:opacity-100 p-1 text-zinc-500 hover:text-red-400 rounded transition-all flex-shrink-0"
+                      title="Delete conversation"
+                    >
+                      <Trash2 size={12} />
+                    </button>
                   </div>
                   <p className="text-[10px] text-zinc-600 mt-1 pl-5">
                     {new Date(session.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                   </p>
-                </button>
+                </div>
               ))
             )}
           </div>
@@ -415,18 +503,21 @@ export default function ChatPage() {
                                 : 'bg-surface_container_high text-zinc-200 rounded-bl-md'
                             }`}
                           >
-                            <div className="whitespace-pre-wrap">{formatContent(msg.content)}</div>
+                            {msg.role === 'assistant' ? renderMarkdown(msg.content) : <div className="whitespace-pre-wrap">{msg.content}</div>}
                           </div>
-                          {msg.role === 'assistant' && msg.cited_sources && msg.cited_sources.length > 0 && (
-                            <button
-                              onClick={() => handleShowCitations(msg.cited_sources!)}
-                              className="flex items-center gap-1.5 mt-2 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
-                            >
-                              <BookOpen size={12} />
-                              {msg.cited_sources.length} source{msg.cited_sources.length !== 1 ? 's' : ''}
-                              <ChevronRight size={12} />
-                            </button>
-                          )}
+                          {msg.role === 'assistant' && msg.cited_sources && msg.cited_sources.length > 0 && (() => {
+                            const unique = deduplicateCitations(msg.cited_sources!);
+                            return (
+                              <button
+                                onClick={() => handleShowCitations(msg.cited_sources!)}
+                                className="flex items-center gap-1.5 mt-2 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                              >
+                                <BookOpen size={12} />
+                                {unique.length} source{unique.length !== 1 ? 's' : ''}
+                                <ChevronRight size={12} />
+                              </button>
+                            );
+                          })()}
                         </div>
                       </div>
                     ))
@@ -440,18 +531,21 @@ export default function ChatPage() {
                       </div>
                       <div className="max-w-[75%]">
                         <div className="px-4 py-3 rounded-2xl rounded-bl-md bg-surface_container_high text-zinc-200 text-sm leading-relaxed">
-                          <div className="whitespace-pre-wrap">{formatContent(streamingContent)}</div>
+                          {renderMarkdown(streamingContent)}
                         </div>
-                        {streamingCitations.length > 0 && (
-                          <button
-                            onClick={() => handleShowCitations(streamingCitations)}
-                            className="flex items-center gap-1.5 mt-2 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
-                          >
-                            <BookOpen size={12} />
-                            {streamingCitations.length} source{streamingCitations.length !== 1 ? 's' : ''}
-                            <ChevronRight size={12} />
-                          </button>
-                        )}
+                        {streamingCitations.length > 0 && (() => {
+                          const unique = deduplicateCitations(streamingCitations);
+                          return (
+                            <button
+                              onClick={() => handleShowCitations(streamingCitations)}
+                              className="flex items-center gap-1.5 mt-2 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                            >
+                              <BookOpen size={12} />
+                              {unique.length} source{unique.length !== 1 ? 's' : ''}
+                              <ChevronRight size={12} />
+                            </button>
+                          );
+                        })()}
                       </div>
                     </div>
                   )}
@@ -504,6 +598,40 @@ export default function ChatPage() {
               </p>
             </div>
           </div>
+
+          {/* Delete Session Confirmation Modal */}
+          {sessionToDelete && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+              <div className="bg-surface_container border border-[#161f33] rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden">
+                <div className="p-6">
+                  <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center mb-4">
+                    <Trash2 className="text-red-500" size={24} />
+                  </div>
+                  <h2 className="text-lg font-bold text-white mb-2">Delete Conversation</h2>
+                  <p className="text-zinc-400 text-sm">
+                    Are you sure? This will permanently delete this conversation and all its messages.
+                  </p>
+                </div>
+                <div className="p-4 border-t border-[#161f33] bg-surface_container_high flex justify-end gap-3">
+                  <button
+                    onClick={() => setSessionToDelete(null)}
+                    disabled={deletingSessionId === sessionToDelete}
+                    className="px-4 py-2 bg-surface_container hover:bg-surface_container_highest border border-[#161f33] text-zinc-300 hover:text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => handleDeleteSession(sessionToDelete)}
+                    disabled={deletingSessionId === sessionToDelete}
+                    className="px-5 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl text-sm font-medium shadow-[0_0_16px_rgba(239,68,68,0.2)] transition-colors flex items-center gap-2 disabled:opacity-50"
+                  >
+                    {deletingSessionId === sessionToDelete ? <Loader2 size={16} className="animate-spin" /> : null}
+                    {deletingSessionId === sessionToDelete ? 'Deleting...' : 'Delete'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Citations Panel */}
           {showCitations && selectedMessageCitations.length > 0 && (

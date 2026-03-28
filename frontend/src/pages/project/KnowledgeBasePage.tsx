@@ -89,6 +89,7 @@ export default function KnowledgeBasePage() {
 
   // Delete confirmation
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteConfirmPaperId, setDeleteConfirmPaperId] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -559,7 +560,7 @@ export default function KnowledgeBasePage() {
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <button
-                        onClick={(e) => { e.stopPropagation(); handleRemovePaper(pp.paper.id); }}
+                        onClick={(e) => { e.stopPropagation(); setDeleteConfirmPaperId(pp.paper.id); }}
                         disabled={deletingId === pp.paper.id}
                         className="p-2 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-50"
                         title="Remove paper"
@@ -785,6 +786,43 @@ export default function KnowledgeBasePage() {
               <p className="text-sm">Enter a query to search across your project's indexed papers and documents.</p>
             </div>
           ) : null}
+        </div>
+      )}
+
+      {/* Delete Paper Confirmation Modal */}
+      {deleteConfirmPaperId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-surface_container border border-[#161f33] rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
+            <div className="p-6">
+              <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center mb-4">
+                <Trash2 className="text-red-500" size={24} />
+              </div>
+              <h2 className="text-xl font-bold text-white mb-2">Remove Paper</h2>
+              <p className="text-zinc-400 text-sm">
+                Are you sure you want to remove this paper from the project? This will also delete any indexed chunks for this paper.
+              </p>
+            </div>
+            <div className="p-4 border-t border-[#161f33] bg-surface_container_high flex justify-end gap-3">
+              <button
+                onClick={() => setDeleteConfirmPaperId(null)}
+                disabled={deletingId === deleteConfirmPaperId}
+                className="px-4 py-2 bg-surface_container hover:bg-surface_container_highest border border-[#161f33] text-zinc-300 hover:text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  handleRemovePaper(deleteConfirmPaperId);
+                  setDeleteConfirmPaperId(null);
+                }}
+                disabled={deletingId === deleteConfirmPaperId}
+                className="px-5 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl text-sm font-medium shadow-[0_0_16px_rgba(239,68,68,0.2)] transition-colors flex items-center gap-2 disabled:opacity-50"
+              >
+                {deletingId === deleteConfirmPaperId ? <Loader2 size={16} className="animate-spin" /> : null}
+                {deletingId === deleteConfirmPaperId ? 'Removing...' : 'Remove'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -20,16 +20,29 @@ const ARXIV_CATEGORIES_MAP: Record<string, string> = {
   'physics.comp-ph': 'Computational Physics',
 };
 
+interface EditTopic {
+  id: string;
+  name: string;
+  keywords: string[] | null;
+  arxiv_categories: string[] | null;
+  year_from: number | null;
+  year_to: number | null;
+}
+
 interface NewTopicModalProps {
   isOpen: boolean;
   onClose: () => void;
   projectId: string;
   onTopicCreated: (topic: any) => void;
+  onTopicUpdated?: (topic: any) => void;
+  editTopic?: EditTopic | null;
 }
 
-export default function NewTopicModal({ isOpen, onClose, projectId, onTopicCreated }: NewTopicModalProps) {
+export default function NewTopicModal({ isOpen, onClose, projectId, onTopicCreated, onTopicUpdated, editTopic }: NewTopicModalProps) {
   const { getToken } = useAuth();
   const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+
+  const isEditMode = !!editTopic;
 
   const [step, setStep] = useState<1 | 2>(1);
   const [topicName, setTopicName] = useState('');
@@ -51,44 +64,53 @@ export default function NewTopicModal({ isOpen, onClose, projectId, onTopicCreat
   const [yearFrom, setYearFrom] = useState('');
   const [yearTo, setYearTo] = useState('');
 
-  // Topic creation
-  const [isCreating, setIsCreating] = useState(false);
-  const [createdTopicId, setCreatedTopicId] = useState<string | null>(null);
+  // Topic creation/update
+  const [isSaving, setIsSaving] = useState(false);
+  const [topicId, setTopicId] = useState<string | null>(null);
 
   // Step 2: papers
   const [isSearchingPapers, setIsSearchingPapers] = useState(false);
   const [suggestedPapers, setSuggestedPapers] = useState<any[]>([]);
   const [paperActions, setPaperActions] = useState<Record<string, 'accepted' | 'rejected'>>({});
 
-  // Search papers when entering step 2
+  // Pre-fill when editing
   useEffect(() => {
-    if (step === 2 && createdTopicId && selectedKeywords.size > 0) {
-      const searchPapers = async () => {
-        setIsSearchingPapers(true);
-        try {
-          const token = await getToken();
-          const res = await fetch(`${apiUrl}/projects/${projectId}/papers/search`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({
-              keywords: Array.from(selectedKeywords),
-              limit: 10,
-              topic_id: createdTopicId
-            })
-          });
-          if (res.ok) {
-            const data = await res.json();
-            setSuggestedPapers(data || []);
-          }
-        } catch (err) {
-          console.error('Failed to search papers', err);
-        } finally {
-          setIsSearchingPapers(false);
-        }
-      };
-      searchPapers();
+    if (isOpen && editTopic) {
+      setTopicName(editTopic.name);
+      const kws = editTopic.keywords || [];
+      setSuggestedKeywords(kws);
+      setSelectedKeywords(new Set(kws));
+      setSelectedCategories(new Set(editTopic.arxiv_categories || []));
+      setYearFrom(editTopic.year_from?.toString() || '');
+      setYearTo(editTopic.year_to?.toString() || '');
+      setTopicId(editTopic.id);
     }
-  }, [step, createdTopicId, selectedKeywords, getToken, apiUrl, projectId]);
+  }, [isOpen, editTopic]);
+
+  const searchPapersForTopic = async (tId: string, keywords: string[]) => {
+    if (keywords.length === 0) return;
+    setIsSearchingPapers(true);
+    try {
+      const token = await getToken();
+      const res = await fetch(`${apiUrl}/projects/${projectId}/papers/search`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({
+          keywords,
+          limit: 10,
+          topic_id: tId
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSuggestedPapers(data || []);
+      }
+    } catch (err) {
+      console.error('Failed to search papers', err);
+    } finally {
+      setIsSearchingPapers(false);
+    }
+  };
 
   const handleSuggestKeywords = async () => {
     if (!researchGoal.trim()) {
@@ -106,8 +128,11 @@ export default function NewTopicModal({ isOpen, onClose, projectId, onTopicCreat
       });
       if (!res.ok) throw new Error('Failed to generate keywords');
       const data = await res.json();
-      setSuggestedKeywords(data.keywords || []);
-      setSelectedKeywords(new Set(data.keywords || []));
+      const newKeywords = data.keywords || [];
+      // Merge with existing suggested keywords (keep custom ones)
+      const merged = [...new Set([...suggestedKeywords, ...newKeywords])];
+      setSuggestedKeywords(merged);
+      setSelectedKeywords(new Set());
     } catch (err: any) {
       setError(err.message || 'Error suggesting keywords.');
     } finally {
@@ -138,36 +163,57 @@ export default function NewTopicModal({ isOpen, onClose, projectId, onTopicCreat
     setSelectedCategories(newSet);
   };
 
-  const handleCreateTopic = async () => {
+  const handleSaveTopic = async () => {
     if (!topicName.trim()) {
       setError('Topic name is required.');
       return;
     }
     setError('');
-    setIsCreating(true);
+    setIsSaving(true);
+
+    const payload = {
+      name: topicName.trim(),
+      keywords: selectedKeywords.size > 0 ? Array.from(selectedKeywords) : null,
+      arxiv_categories: selectedCategories.size > 0 ? Array.from(selectedCategories) : null,
+      year_from: yearFrom ? parseInt(yearFrom) : null,
+      year_to: yearTo ? parseInt(yearTo) : null,
+    };
+
     try {
       const token = await getToken();
-      const payload = {
-        name: topicName.trim(),
-        keywords: selectedKeywords.size > 0 ? Array.from(selectedKeywords) : null,
-        arxiv_categories: selectedCategories.size > 0 ? Array.from(selectedCategories) : null,
-        year_from: yearFrom ? parseInt(yearFrom) : null,
-        year_to: yearTo ? parseInt(yearTo) : null,
-      };
-      const res = await fetch(`${apiUrl}/projects/${projectId}/topics`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify(payload)
-      });
-      if (!res.ok) throw new Error('Failed to create topic');
-      const topic = await res.json();
-      setCreatedTopicId(topic.id);
-      onTopicCreated(topic);
+
+      if (isEditMode && topicId) {
+        // Update existing topic
+        const res = await fetch(`${apiUrl}/projects/${projectId}/topics/${topicId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify(payload)
+        });
+        if (!res.ok) throw new Error('Failed to update topic');
+        const updated = await res.json();
+        onTopicUpdated?.(updated);
+      } else {
+        // Create new topic
+        const res = await fetch(`${apiUrl}/projects/${projectId}/topics`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify(payload)
+        });
+        if (!res.ok) throw new Error('Failed to create topic');
+        const topic = await res.json();
+        setTopicId(topic.id);
+        onTopicCreated(topic);
+      }
+
+      const activeTopicId = topicId || undefined;
       setStep(2);
+      if (activeTopicId) {
+        searchPapersForTopic(activeTopicId, Array.from(selectedKeywords));
+      }
     } catch (err: any) {
-      setError(err.message || 'Error creating topic.');
+      setError(err.message || 'Error saving topic.');
     } finally {
-      setIsCreating(false);
+      setIsSaving(false);
     }
   };
 
@@ -178,7 +224,7 @@ export default function NewTopicModal({ isOpen, onClose, projectId, onTopicCreat
       await fetch(`${apiUrl}/projects/${projectId}/papers/${paperId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ status: 'accepted' })
+        body: JSON.stringify({ status: 'accepted', topic_id: topicId })
       });
     } catch (err) {
       console.error('Failed to accept paper', err);
@@ -199,10 +245,6 @@ export default function NewTopicModal({ isOpen, onClose, projectId, onTopicCreat
     }
   };
 
-  const handleFinish = () => {
-    resetAndClose();
-  };
-
   const resetAndClose = () => {
     onClose();
     setTimeout(() => {
@@ -217,13 +259,21 @@ export default function NewTopicModal({ isOpen, onClose, projectId, onTopicCreat
       setCategorySearch('');
       setYearFrom('');
       setYearTo('');
-      setCreatedTopicId(null);
+      setTopicId(null);
       setSuggestedPapers([]);
       setPaperActions({});
     }, 300);
   };
 
   if (!isOpen) return null;
+
+  const headerTitle = step === 1
+    ? (isEditMode ? 'Edit Topic' : 'Create New Topic')
+    : 'Review Discovered Papers';
+
+  const saveButtonLabel = isEditMode
+    ? (isSaving ? 'Saving...' : 'Save & Find Papers')
+    : (isSaving ? 'Creating...' : 'Create Topic & Find Papers');
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
@@ -233,9 +283,7 @@ export default function NewTopicModal({ isOpen, onClose, projectId, onTopicCreat
       >
         {/* Header */}
         <div className="relative flex items-center justify-center p-5 border-b border-[#161f33] flex-shrink-0">
-          <h2 className="text-xl font-bold text-white">
-            {step === 1 ? 'Create New Topic' : 'Review Discovered Papers'}
-          </h2>
+          <h2 className="text-xl font-bold text-white">{headerTitle}</h2>
           <button onClick={resetAndClose} className="absolute right-5 text-zinc-300 hover:text-white transition-colors">
             <X size={24} />
           </button>
@@ -283,7 +331,7 @@ export default function NewTopicModal({ isOpen, onClose, projectId, onTopicCreat
 
                 {suggestedKeywords.length > 0 && (
                   <div className="pt-2">
-                    <p className="text-xs font-medium text-zinc-300 mb-2">Select keywords for paper discovery:</p>
+                    <p className="text-xs font-medium text-zinc-300 mb-2">Click to select keywords for paper discovery:</p>
                     <div className="flex flex-wrap gap-2">
                       {suggestedKeywords.map(kw => (
                         <button
@@ -293,7 +341,7 @@ export default function NewTopicModal({ isOpen, onClose, projectId, onTopicCreat
                           className={`px-3 py-1.5 rounded-lg text-sm transition-all border ${
                             selectedKeywords.has(kw)
                               ? 'bg-primary-gradient border-white/40 ring-2 ring-white text-white shadow-lg'
-                              : 'bg-primary-gradient border-transparent text-white/80 hover:text-white opacity-60 hover:opacity-100 shadow-sm'
+                              : 'bg-surface_container_high border-zinc-600 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500'
                           }`}
                         >
                           {kw}
@@ -420,12 +468,12 @@ export default function NewTopicModal({ isOpen, onClose, projectId, onTopicCreat
               </button>
               <button
                 type="button"
-                onClick={handleCreateTopic}
-                disabled={isCreating || !topicName.trim()}
+                onClick={handleSaveTopic}
+                disabled={isSaving || !topicName.trim()}
                 className="bg-primary-gradient text-white px-6 py-2.5 rounded-xl font-medium shadow-[0_4px_20px_-4px_rgba(167,165,255,0.4)] hover:shadow-[0_4px_24px_-4px_rgba(167,165,255,0.6)] disabled:opacity-50 transition-all flex items-center gap-2"
               >
-                {isCreating ? <Loader2 size={18} className="animate-spin" /> : null}
-                {isCreating ? 'Creating...' : 'Create Topic & Find Papers'}
+                {isSaving ? <Loader2 size={18} className="animate-spin" /> : null}
+                {saveButtonLabel}
               </button>
             </div>
           </div>
@@ -514,7 +562,7 @@ export default function NewTopicModal({ isOpen, onClose, projectId, onTopicCreat
             <div className="p-5 border-t border-[#161f33] flex justify-end gap-3 flex-shrink-0 bg-surface_container rounded-b-2xl">
               <button
                 type="button"
-                onClick={handleFinish}
+                onClick={resetAndClose}
                 className="bg-primary-gradient text-white px-6 py-2.5 rounded-xl font-medium shadow-[0_4px_20px_-4px_rgba(167,165,255,0.4)] hover:shadow-[0_4px_24px_-4px_rgba(167,165,255,0.6)] transition-all flex items-center gap-2"
               >
                 Finish

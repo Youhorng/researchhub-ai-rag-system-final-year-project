@@ -48,6 +48,21 @@ async def create_session(
     return session
 
 
+@router.delete("/sessions/{session_id}", status_code=204)
+async def delete_session(
+    project_id: uuid.UUID,
+    session_id: uuid.UUID,
+    db: DbSession,
+    current_user: CurrentUser,
+):
+    """Delete a chat session and all its messages."""
+    _get_project(db, project_id, current_user.id)
+    session = chat_repo.get_session(db, session_id)
+    if not session or session.project_id != project_id:
+        raise HTTPException(status_code=404, detail="Session not found")
+    chat_repo.delete_session(db, session)
+
+
 @router.get("/sessions", response_model=list[ChatSessionResponse])
 async def list_sessions(
     project_id: uuid.UUID,
@@ -80,6 +95,25 @@ async def list_messages(
     if not session or session.project_id != project_id:
         raise HTTPException(status_code=404, detail="Session not found")
     return chat_repo.list_messages(db, session_id, limit, offset)
+
+
+@router.delete("/sessions/{session_id}/messages/{message_id}", status_code=204)
+async def delete_message(
+    project_id: uuid.UUID,
+    session_id: uuid.UUID,
+    message_id: uuid.UUID,
+    db: DbSession,
+    current_user: CurrentUser,
+):
+    """Delete a single message from a chat session."""
+    _get_project(db, project_id, current_user.id)
+    session = chat_repo.get_session(db, session_id)
+    if not session or session.project_id != project_id:
+        raise HTTPException(status_code=404, detail="Session not found")
+    message = chat_repo.get_message(db, message_id)
+    if not message or message.session_id != session_id:
+        raise HTTPException(status_code=404, detail="Message not found")
+    chat_repo.delete_message(db, message)
 
 
 @router.post("/sessions/{session_id}/messages")

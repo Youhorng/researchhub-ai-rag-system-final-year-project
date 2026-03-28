@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@clerk/react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Folder, FileText, Calendar, Loader2, Database, Trash2 } from 'lucide-react';
+import { Search, Folder, FileText, Calendar, Loader2, Database, Trash2, Archive, ArchiveRestore } from 'lucide-react';
 
 interface Project {
   id: string;
@@ -21,8 +21,10 @@ export default function ProjectsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'active' | 'archived'>('active');
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
+  const [isArchiving, setIsArchiving] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchProjects = async () => {
@@ -31,7 +33,7 @@ export default function ProjectsPage() {
         // Fallback to localhost if env URL isn't set
         const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
         
-        const res = await fetch(`${apiUrl}/projects`, {
+        const res = await fetch(`${apiUrl}/projects?include_archived=true`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
@@ -75,7 +77,35 @@ export default function ProjectsPage() {
     }
   };
 
-  const filteredProjects = projects.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()));
+  const handleToggleArchive = async (project: Project) => {
+    const newStatus = project.status === 'active' ? 'archived' : 'active';
+    setIsArchiving(project.id);
+    try {
+      const token = await getToken();
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+      const res = await fetch(`${apiUrl}/projects/${project.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ status: newStatus })
+      });
+      if (!res.ok) throw new Error('Failed to update project');
+      setProjects(prev => prev.map(p => p.id === project.id ? { ...p, status: newStatus } : p));
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsArchiving(null);
+    }
+  };
+
+  const activeCount = projects.filter(p => p.status === 'active').length;
+  const archivedCount = projects.filter(p => p.status === 'archived').length;
+
+  const filteredProjects = projects
+    .filter(p => p.status === statusFilter)
+    .filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()));
 
   return (
     <div className="flex flex-col h-full font-sans">
@@ -105,6 +135,42 @@ export default function ProjectsPage() {
         </div>
       </div>
 
+      {/* Status Filter Tabs */}
+      <div className="flex items-center gap-1 p-1 bg-surface_container border border-[#161f33] rounded-xl w-fit mb-6 flex-shrink-0">
+        <button
+          onClick={() => setStatusFilter('active')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+            statusFilter === 'active'
+              ? 'bg-surface_container_highest text-white shadow-sm'
+              : 'text-zinc-400 hover:text-zinc-200'
+          }`}
+        >
+          <Folder size={15} />
+          Active
+          <span className={`text-xs px-1.5 py-0.5 rounded-md ${
+            statusFilter === 'active'
+              ? 'bg-emerald-500/15 text-emerald-400'
+              : 'bg-surface_container_high text-zinc-500'
+          }`}>{activeCount}</span>
+        </button>
+        <button
+          onClick={() => setStatusFilter('archived')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+            statusFilter === 'archived'
+              ? 'bg-surface_container_highest text-white shadow-sm'
+              : 'text-zinc-400 hover:text-zinc-200'
+          }`}
+        >
+          <Archive size={15} />
+          Archived
+          <span className={`text-xs px-1.5 py-0.5 rounded-md ${
+            statusFilter === 'archived'
+              ? 'bg-amber-500/15 text-amber-400'
+              : 'bg-surface_container_high text-zinc-500'
+          }`}>{archivedCount}</span>
+        </button>
+      </div>
+
       {isLoading ? (
         <div className="flex-1 flex items-center justify-center">
           <Loader2 className="animate-spin text-primary" size={32} />
@@ -115,10 +181,20 @@ export default function ProjectsPage() {
         </div>
       ) : filteredProjects.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center text-center p-8 border-2 border-dashed border-[#161f33] rounded-2xl bg-surface_container/50">
-          <Folder className="text-zinc-600 mb-4" size={48} />
-          <h3 className="text-lg font-medium text-white mb-2">No projects found</h3>
+          {statusFilter === 'archived' ? (
+            <Archive className="text-zinc-600 mb-4" size={48} />
+          ) : (
+            <Folder className="text-zinc-600 mb-4" size={48} />
+          )}
+          <h3 className="text-lg font-medium text-white mb-2">
+            {statusFilter === 'archived' ? 'No archived projects' : 'No projects found'}
+          </h3>
           <p className="text-zinc-400 text-sm max-w-sm">
-            {searchQuery ? `We couldn't find any projects matching "${searchQuery}".` : 'Get started by creating a new research project from the sidebar.'}
+            {searchQuery
+              ? `We couldn't find any projects matching "${searchQuery}".`
+              : statusFilter === 'archived'
+                ? 'Projects you archive will appear here. You can archive a project from its settings page.'
+                : 'Get started by creating a new research project from the sidebar.'}
           </p>
         </div>
       ) : (
@@ -162,13 +238,30 @@ export default function ProjectsPage() {
               </div>
 
               <div className="flex gap-3">
-                <button 
+                <button
                   onClick={() => navigate(`/dashboard/projects/${project.id}`)}
                   className="flex-1 flex items-center justify-center gap-2 bg-surface_container_high hover:bg-surface_container_highest border border-[#161f33] text-white py-2.5 rounded-xl text-sm font-medium transition-colors group-hover:border-indigo-500/30 group-hover:text-indigo-300 group-hover:bg-indigo-500/10"
                 >
                   Open Project
                 </button>
-                <button 
+                <button
+                  onClick={() => handleToggleArchive(project)}
+                  disabled={isArchiving === project.id}
+                  className={`w-12 flex-shrink-0 flex items-center justify-center bg-surface_container_high border border-[#161f33] rounded-xl transition-colors disabled:opacity-50 ${
+                    project.status === 'archived'
+                      ? 'hover:bg-emerald-500/10 hover:border-emerald-500/30 text-zinc-400 hover:text-emerald-400'
+                      : 'hover:bg-amber-500/10 hover:border-amber-500/30 text-zinc-400 hover:text-amber-400'
+                  }`}
+                  title={project.status === 'archived' ? 'Unarchive Project' : 'Archive Project'}
+                >
+                  {isArchiving === project.id
+                    ? <Loader2 size={18} className="animate-spin" />
+                    : project.status === 'archived'
+                      ? <ArchiveRestore size={18} />
+                      : <Archive size={18} />
+                  }
+                </button>
+                <button
                   onClick={() => setProjectToDelete(project)}
                   disabled={isDeleting === project.id}
                   className="w-12 flex-shrink-0 flex items-center justify-center bg-surface_container_high hover:bg-red-500/10 border border-[#161f33] hover:border-red-500/30 text-zinc-400 hover:text-red-400 rounded-xl transition-colors disabled:opacity-50"
