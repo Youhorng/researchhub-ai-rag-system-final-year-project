@@ -7,7 +7,7 @@ from src.models.chat import ChatMessage, ChatSession
 
 def create_session(
     db: Session,
-    project_id: uuid.UUID,
+    project_id: uuid.UUID | None,
     user_id: uuid.UUID,
     title: str | None = None,
 ) -> ChatSession:
@@ -28,18 +28,15 @@ def get_session(db: Session, session_id: uuid.UUID) -> ChatSession | None:
 
 def list_sessions(
     db: Session,
-    project_id: uuid.UUID,
+    project_id: uuid.UUID | None,
     user_id: uuid.UUID,
 ) -> list[ChatSession]:
-    return (
-        db.query(ChatSession)
-        .filter(
-            ChatSession.project_id == project_id,
-            ChatSession.user_id == user_id,
-        )
-        .order_by(desc(ChatSession.updated_at))
-        .all()
-    )
+    query = db.query(ChatSession).filter(ChatSession.user_id == user_id)
+    if project_id:
+        query = query.filter(ChatSession.project_id == project_id)
+    else:
+        query = query.filter(ChatSession.project_id.is_(None))
+    return query.order_by(desc(ChatSession.updated_at)).all()
 
 
 def add_message(

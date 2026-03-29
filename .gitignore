@@ -53,3 +53,6 @@ build/
 docker-compose.override.yml
 
 backend/airflow/data
+
+# Ignore claude md
+CLAUDE.md

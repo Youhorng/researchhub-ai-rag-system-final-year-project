@@ -7,12 +7,12 @@ settings = get_settings()
 def build_chunk_search_query(
     query_text: str,
     query_vector: list[float],
-    project_id: str,
+    project_id: str | None = None,
     size: int = 8,
 ) -> dict:
-    """Build a hybrid BM25 + k-NN query for the chunks index, scoped to a project."""
+    """Build a hybrid BM25 + k-NN query for the chunks index, optionally scoped to a project."""
 
-    filter_clause = [{"term": {"project_id": project_id}}]
+    filter_clause = [{"term": {"project_id": project_id}}] if project_id else []
 
     bm25_query = {
         "bool": {
@@ -54,7 +54,7 @@ def build_chunk_search_query(
 
 # Define a function to build the hybrid search query
 def build_hybrid_search_query(
-    query_vector: list[float],
+    query_vector: list[float] | None,
     keywords: list[str],
     size: int = 10,
     categories: list[str] | None = None,
@@ -99,6 +99,13 @@ def build_hybrid_search_query(
             "filter": filter_clause
         }
     }
+
+    if not query_vector:
+        # If no vector is provided, just return the BM25 query
+        return {
+            "size": size,
+            "query": bm25_query
+        }
 
     # KNN semantic sub-query using script_score (brute-force cosine similarity).
     # This avoids loading the full HNSW graph into native memory, which can

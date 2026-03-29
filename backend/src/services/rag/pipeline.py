@@ -114,13 +114,13 @@ async def run_rag_pipeline(
     db: Session,
     os_client: OpenSearch,
     user_id: uuid.UUID,
-    project: Project,
+    project: Project | None,
     session_id: uuid.UUID,
     user_query: str,
 ) -> AsyncGenerator[str, None]:
     """Async generator that yields SSE events for a RAG chat turn."""
 
-    project_id = project.id
+    project_id = project.id if project else None
     trace = create_rag_trace(user_id, session_id, project_id, user_query)
 
     try:
@@ -136,9 +136,9 @@ async def run_rag_pipeline(
 
         agent_state = {
             "query": user_query,
-            "project_id": str(project_id),
-            "research_goal": project.research_goal or "",
-            "initial_keywords": project.initial_keywords or [],
+            "project_id": str(project_id) if project_id else "",
+            "research_goal": project.research_goal if project else "General scientific literature.",
+            "initial_keywords": project.initial_keywords if project else [],
             "conversation_history": [
                 {"role": msg.role, "content": msg.content} for msg in history
             ],
@@ -167,19 +167,23 @@ async def run_rag_pipeline(
         grouped_sources = merge_duplicate_sources(grouped_sources)
 
         # Fetch accepted paper/document titles for KB inventory
-        accepted_papers = (
-            db.query(ProjectPaper)
-            .filter(ProjectPaper.project_id == project_id, ProjectPaper.status == "accepted")
-            .all()
-        )
+        accepted_papers = []
+        if project_id:
+            accepted_papers = (
+                db.query(ProjectPaper)
+                .filter(ProjectPaper.project_id == project_id, ProjectPaper.status == "accepted")
+                .all()
+            )
         paper_titles = [pp.paper.title for pp in accepted_papers if pp.paper and pp.paper.title]
 
         # Also include uploaded documents
-        uploaded_docs = (
-            db.query(Document)
-            .filter(Document.project_id == project_id, Document.chunks_indexed.is_(True))
-            .all()
-        )
+        uploaded_docs = []
+        if project_id:
+            uploaded_docs = (
+                db.query(Document)
+                .filter(Document.project_id == project_id, Document.chunks_indexed.is_(True))
+                .all()
+            )
         paper_titles.extend(doc.title for doc in uploaded_docs if doc.title)
 
         system_message = build_system_message(chunks, grouped_sources=grouped_sources, paper_titles=paper_titles)

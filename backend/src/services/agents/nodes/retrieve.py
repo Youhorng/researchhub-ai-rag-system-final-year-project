@@ -18,7 +18,7 @@ def _search_chunks(
     os_client: OpenSearch,
     query_text: str,
     query_vector: list[float],
-    project_id: str,
+    project_id: str | None = None,
     size: int = 8,
 ) -> list[dict]:
     """Execute hybrid search against the chunks index."""
@@ -158,10 +158,11 @@ def make_retrieve_node(os_client: OpenSearch, trace):
         # Retrieve
         t0 = time.time()
         retrieve_span = trace.start_span(name="retrieve", input=query_text)
-        chunks = _search_chunks(os_client, query_text, query_vector, state["project_id"], size=15)
+        chunks = _search_chunks(os_client, query_text, query_vector, state.get("project_id"), size=15)
 
         # Ensure coverage across all papers/documents in the project
-        chunks = _fill_missing_sources(os_client, chunks, query_vector, state["project_id"])
+        if state.get("project_id"):
+            chunks = _fill_missing_sources(os_client, chunks, query_vector, state["project_id"])
 
         retrieve_ms = round((time.time() - t0) * 1000)
         retrieve_span.update(output={"num_chunks": len(chunks), "latency_ms": retrieve_ms})

@@ -13,6 +13,9 @@ from src.routers.documents import router as documents_router
 from src.routers.health import router as health_router
 from src.routers.papers import router as papers_router
 from src.routers.projects import router as projects_router
+from src.routers.explore import router as explore_router
+from src.routers.activity import router as activity_router
+from src.routers.analytics import router as analytics_router
 
 # Configure settings and logging
 settings = get_settings()
@@ -80,3 +83,6 @@ app.include_router(papers_router)
 app.include_router(documents_router)
 app.include_router(chat_router)
 app.include_router(search_router)
+app.include_router(explore_router)
+app.include_router(activity_router)
+app.include_router(analytics_router)

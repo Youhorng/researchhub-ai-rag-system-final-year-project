@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { UserButton } from '@clerk/react';
-import { Plus, LayoutDashboard, Folder, BookOpen, Sparkles, Settings, Menu, Sidebar, X } from 'lucide-react';
+import { Plus, LayoutDashboard, Folder, Compass, Activity, BarChart3, Settings, Menu, Sidebar, X } from 'lucide-react';
 import NewProjectModal from '../components/modals/NewProjectModal';
 
 export default function DashboardLayout() {
@@ -29,8 +29,9 @@ export default function DashboardLayout() {
   const navItems = [
     { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
     { name: 'Projects', path: '/dashboard/projects', icon: Folder },
-    { name: 'Knowledge Base', path: '/dashboard/knowledge', icon: BookOpen },
-    { name: 'AI Chat', path: '/dashboard/chat', icon: Sparkles },
+    { name: 'Explore', path: '/dashboard/explore', icon: Compass },
+    { name: 'Activity', path: '/dashboard/activity', icon: Activity },
+    { name: 'Analytics', path: '/dashboard/analytics', icon: BarChart3 },
   ];
 
   return (

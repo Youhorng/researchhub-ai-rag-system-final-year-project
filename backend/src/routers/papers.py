@@ -2,6 +2,7 @@ import logging
 import uuid
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from opensearchpy import OpenSearch
+from pydantic import BaseModel
 
 from src.dependencies import CurrentUser, DbSession
 from src.models.paper import ProjectPaper
@@ -20,6 +21,7 @@ from src.services.paper_service import (
     remove_paper_from_project,
     search_and_suggest_papers,
 )
+from src.repositories import paper_repo
 
 
 # Configure the logging
@@ -29,7 +31,71 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/projects/{project_id}/papers", tags=["papers"])
 
 
-# Trigger search endpoint
+class AddPaperFromExploreRequest(BaseModel):
+    arxiv_id: str
+    title: str
+    abstract: str | None = None
+    categories: list[str] | None = None
+    published_at: str | None = None
+    topic_id: uuid.UUID | None = None
+
+
+@router.post("/add", response_model=ProjectPaperResponse, status_code=201)
+async def add_paper_from_explore(
+    project_id: uuid.UUID,
+    data: AddPaperFromExploreRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+    background_tasks: BackgroundTasks,
+):
+    """Directly add an arXiv paper from Explore into a project (accepted immediately)."""
+    from datetime import datetime, timezone
+
+    project = db.query(Project).filter_by(id=project_id, owner_id=current_user.id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    arxiv_data = {
+        "arxiv_id": data.arxiv_id,
+        "title": data.title,
+        "abstract": data.abstract or "",
+        "categories": data.categories or [],
+        "published_at": data.published_at,
+    }
+    paper = paper_repo.get_or_create(db, arxiv_data)
+
+    existing = db.query(ProjectPaper).filter_by(project_id=project_id, paper_id=paper.id).first()
+    if existing:
+        if existing.status != "accepted":
+            existing.status = "accepted"
+            existing.status_updated_at = datetime.now(timezone.utc)
+            project.paper_count += 1
+        if data.topic_id is not None:
+            existing.topic_id = data.topic_id
+        db.commit()
+        db.refresh(existing)
+        return existing
+
+    project_paper = ProjectPaper(
+        project_id=project_id,
+        paper_id=paper.id,
+        status="accepted",
+        relevance_score=1.0,
+        added_by="explore",
+        topic_id=data.topic_id,
+        status_updated_at=datetime.now(timezone.utc),
+    )
+    db.add(project_paper)
+    project.paper_count += 1
+    db.commit()
+    db.refresh(project_paper)
+
+    if paper.pdf_url and not paper.chunks_indexed:
+        background_tasks.add_task(index_paper_chunks, paper.id, project_id)
+
+    return project_paper
+
+
 @router.post("/search", response_model=list[PaperResponse])
 async def search_papers(
     project_id: uuid.UUID,

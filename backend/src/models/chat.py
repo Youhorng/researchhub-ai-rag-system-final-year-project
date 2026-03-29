@@ -16,10 +16,9 @@ class ChatSession(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
 
-    # Scoped to a specific project — RAG search is also project-scoped.
-    # This ensures the AI only answers from papers in THIS project.
-    project_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("projects.id"), nullable=False, index=True
+    # Scoped to a specific project. For global chat, this is Null.
+    project_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("projects.id"), nullable=True, index=True
     )
 
     # Which user opened this session.
@@ -28,7 +27,6 @@ class ChatSession(Base):
     )
 
     # Auto-generated or user-provided title for this conversation.
-    # Example: "What is the difference between RAG and fine-tuning?"
     title: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     # When this session was created.
@@ -36,14 +34,15 @@ class ChatSession(Base):
         DateTime(timezone=True), server_default=func.now()
     )
 
-    # When the last message was sent — used to sort sessions by recent activity.
+    # When the last message was sent.
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
         onupdate=func.now(),
     )
 
-    project: Mapped["Project"] = relationship(back_populates="chat_sessions")
+    # 1-to-many: session project relation
+    project: Mapped["Project | None"] = relationship(back_populates="chat_sessions")
 
     # 1-to-many: a session contains many messages.
     # cascade="all, delete-orphan" deleting a session deletes all its messages.

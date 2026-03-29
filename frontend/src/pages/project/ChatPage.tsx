@@ -369,10 +369,10 @@ export default function ChatPage() {
       {/* Sessions Sidebar */}
       {showSidebar && (
         <div className="w-64 flex-shrink-0 bg-surface_container_low border-r border-[#161f33] flex flex-col rounded-l-2xl overflow-hidden">
-          <div className="h-12 px-3 border-b border-[#161f33] flex items-center flex-shrink-0">
+          <div className="h-16 px-3 border-b border-[#161f33] flex items-center justify-center flex-shrink-0">
             <button
               onClick={handleNewSession}
-              className="w-full flex items-center justify-center gap-2 bg-primary-gradient text-white py-1.5 px-4 rounded-xl font-medium shadow-[0_4px_20px_-4px_rgba(167,165,255,0.4)] hover:shadow-[0_4px_24px_-4px_rgba(167,165,255,0.6)] transition-all text-sm"
+              className="w-4/5 flex items-center justify-center gap-2 bg-primary-gradient text-white py-1.5 px-4 rounded-xl font-medium shadow-[0_4px_20px_-4px_rgba(167,165,255,0.4)] hover:shadow-[0_4px_24px_-4px_rgba(167,165,255,0.6)] transition-all text-sm"
             >
               <Plus size={16} strokeWidth={2.5} />
               New Chat
@@ -425,7 +425,7 @@ export default function ChatPage() {
       {/* Chat Main Area */}
       <div className="flex-1 flex flex-col bg-surface_container rounded-r-2xl overflow-hidden min-w-0">
         {/* Chat header */}
-        <div className="h-12 border-b border-[#161f33] flex items-center justify-between px-4 flex-shrink-0">
+        <div className="h-16 border-b border-[#161f33] flex items-center justify-between px-4 flex-shrink-0">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setShowSidebar(!showSidebar)}

@@ -6,6 +6,10 @@ import SignUpPage from './pages/SignUpPage'
 import DashboardLayout from './layouts/DashboardLayout'
 import DashboardPage from './pages/DashboardPage'
 import ProjectsPage from './pages/ProjectsPage'
+import ExplorePage from './pages/dashboard/ExplorePage'
+import ActivityPage from './pages/dashboard/ActivityPage'
+import AnalyticsPage from './pages/dashboard/AnalyticsPage'
+import PaperDetailPage from './pages/dashboard/PaperDetailPage'
 import ProjectLayout from './layouts/ProjectLayout'
 import ProjectDashboardPage from './pages/project/ProjectDashboardPage'
 import KnowledgeBasePage from './pages/project/KnowledgeBasePage'
@@ -59,8 +63,10 @@ function App() {
         <Route path="/dashboard" element={<DashboardPage />} />
         {/* Sub-routes */}
         <Route path="/dashboard/projects" element={<ProjectsPage />} />
-        <Route path="/dashboard/knowledge" element={<Navigate to="/dashboard/projects" replace />} />
-        <Route path="/dashboard/chat" element={<Navigate to="/dashboard/projects" replace />} />
+        <Route path="/dashboard/explore" element={<ExplorePage />} />
+        <Route path="/dashboard/explore/paper/:arxivId" element={<PaperDetailPage />} />
+        <Route path="/dashboard/activity" element={<ActivityPage />} />
+        <Route path="/dashboard/analytics" element={<AnalyticsPage />} />
       </Route>
 
       {/* Authenticated Project Sub-App */}
