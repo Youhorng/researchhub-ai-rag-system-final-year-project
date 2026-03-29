@@ -2,37 +2,24 @@ import json
 import logging
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import httpx
 from airflow.decorators import dag, task
-from opensearchpy import OpenSearch
 from sqlalchemy import create_engine, text
 
-logger = logging.getLogger(__name__)
-
-# ── Environment variables ──────────────────────────────────────────────
-POSTGRES_USER = os.environ.get("POSTGRES_USER", "rag_user")
-POSTGRES_PASSWORD = os.environ.get("POSTGRES_PASSWORD", "rag_password")
-POSTGRES_HOST = os.environ.get("POSTGRES_HOST", "postgres")
-POSTGRES_PORT = os.environ.get("POSTGRES_PORT", "5432")
-POSTGRES_DB = os.environ.get("POSTGRES_DB", "rag_db")
-
-OPENSEARCH_HOST = os.environ.get("OPENSEARCH__HOST", "http://opensearch:9200")
-OPENSEARCH_USER = os.environ.get("OPENSEARCH_USER", "admin")
-OPENSEARCH_PASSWORD = os.environ.get("OPENSEARCH_PASSWORD", "admin")
-OPENSEARCH_INDEX_NAME = os.environ.get("OPENSEARCH__INDEX_NAME", "arxiv-papers")
-
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
-OPENAI_API_URL = "https://api.openai.com/v1"
-OPENAI_EMBEDDING_MODEL = "text-embedding-3-small"
-OPENAI_EMBEDDING_DIMENSIONS = 1024
-
-DATABASE_URL = (
-    f"postgresql+psycopg2://{POSTGRES_USER}:{POSTGRES_PASSWORD}"
-    f"@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
+from _dag_config import (
+    DATABASE_URL,
+    OPENAI_API_KEY,
+    OPENAI_API_URL,
+    OPENAI_EMBEDDING_DIMENSIONS,
+    OPENAI_EMBEDDING_MODEL,
+    OPENSEARCH_INDEX_NAME,
+    get_opensearch_client,
 )
+
+logger = logging.getLogger(__name__)
 
 # ── Processing constants ───────────────────────────────────────────────
 MAX_REQUESTS_PER_BATCH = 4_000         # Stay under enqueued token limit
@@ -46,17 +33,6 @@ BATCH_OUTPUT_DIR = "/opt/airflow/data/batch_outputs"
 
 
 # ── Shared helpers ─────────────────────────────────────────────────────
-def get_opensearch_client():
-    return OpenSearch(
-        hosts=[OPENSEARCH_HOST],
-        http_auth=(OPENSEARCH_USER, OPENSEARCH_PASSWORD),
-        use_ssl=False,
-        verify_certs=False,
-        ssl_assert_hostname=False,
-        ssl_show_warn=False,
-    )
-
-
 def _openai_headers() -> dict[str, str]:
     return {"Authorization": f"Bearer {OPENAI_API_KEY}"}
 
@@ -247,7 +223,7 @@ def _index_chunk_to_opensearch(
                 f"WHERE arxiv_id IN ({ph})"
             )
             up = {f"id_{k}": aid for k, aid in enumerate(indexed_ids)}
-            up["indexed_at"] = datetime.utcnow()
+            up["indexed_at"] = datetime.now(timezone.utc)
             with db_conn.begin():
                 db_conn.execute(update_sql, up)
 
@@ -305,8 +281,7 @@ def arxiv_bulk_load_batch_dag():
     @task
     def process_all_batches():
         """One-batch-at-a-time loop: submit → poll → index → repeat."""
-        if not OPENAI_API_KEY:
-            raise ValueError("OPENAI_API_KEY is not set!")
+        # OPENAI_API_KEY is validated by _dag_config on import
 
         engine = create_engine(DATABASE_URL)
         os_client = get_opensearch_client()

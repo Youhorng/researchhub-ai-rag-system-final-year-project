@@ -25,6 +25,8 @@ from opensearchpy import OpenSearch
 from sqlalchemy.orm import Session
 
 from src.config import get_settings
+from src.models.document import Document
+from src.models.paper import ProjectPaper
 from src.models.project import Project
 from src.repositories import chat_repo
 from src.services.agents.graph import build_retrieval_graph
@@ -164,7 +166,23 @@ async def run_rag_pipeline(
         grouped_sources = group_chunks_by_source(chunks)
         grouped_sources = merge_duplicate_sources(grouped_sources)
 
-        system_message = build_system_message(chunks, grouped_sources=grouped_sources)
+        # Fetch accepted paper/document titles for KB inventory
+        accepted_papers = (
+            db.query(ProjectPaper)
+            .filter(ProjectPaper.project_id == project_id, ProjectPaper.status == "accepted")
+            .all()
+        )
+        paper_titles = [pp.paper.title for pp in accepted_papers if pp.paper and pp.paper.title]
+
+        # Also include uploaded documents
+        uploaded_docs = (
+            db.query(Document)
+            .filter(Document.project_id == project_id, Document.chunks_indexed.is_(True))
+            .all()
+        )
+        paper_titles.extend(doc.title for doc in uploaded_docs if doc.title)
+
+        system_message = build_system_message(chunks, grouped_sources=grouped_sources, paper_titles=paper_titles)
         messages = _build_chat_messages(system_message, history, user_query)
 
         # 6. Stream generation

@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
-import { useOutletContext, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useAuth } from '@clerk/react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
-  Sparkles, Send, Plus, Loader2, MessageSquare, BookOpen, X, ChevronRight, Trash2
+  Sparkles, SendHorizontal, Plus, Loader2, MessageSquare, BookOpen, X, ChevronRight, Trash2
 } from 'lucide-react';
 
 interface ChatSession {
@@ -33,7 +33,6 @@ interface ChatMessage {
 }
 
 export default function ChatPage() {
-  const { project } = useOutletContext<{ project: any }>();
   const { projectId } = useParams<{ projectId: string }>();
   const { getToken } = useAuth();
   const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
@@ -92,10 +91,18 @@ export default function ChatPage() {
     if (projectId) fetchSessions();
   }, [projectId, getToken, apiUrl]);
 
+  // Track sessions created inline (first message) to skip re-fetching over optimistic messages
+  const inlineCreatedSessionRef = useRef<string | null>(null);
+
   // Fetch messages when session changes
   useEffect(() => {
     if (!activeSessionId) {
       setMessages([]);
+      return;
+    }
+    // Skip fetch for sessions just created inline — we already have the optimistic message
+    if (inlineCreatedSessionRef.current === activeSessionId) {
+      inlineCreatedSessionRef.current = null;
       return;
     }
     const fetchMessages = async () => {
@@ -157,6 +164,7 @@ export default function ChatPage() {
           const session = await res.json();
           setSessions(prev => [session, ...prev]);
           sessionId = session.id;
+          inlineCreatedSessionRef.current = session.id;
           setActiveSessionId(session.id);
         }
       } catch (err) {
@@ -328,8 +336,8 @@ export default function ChatPage() {
         p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
         strong: ({ children }) => <strong className="font-semibold text-white">{children}</strong>,
         em: ({ children }) => <em className="italic">{children}</em>,
-        ul: ({ children }) => <ul className="list-disc list-inside mb-2 space-y-1">{children}</ul>,
-        ol: ({ children }) => <ol className="list-decimal list-inside mb-2 space-y-1">{children}</ol>,
+        ul: ({ children }) => <ul className="list-disc list-outside pl-5 mb-2 space-y-1">{children}</ul>,
+        ol: ({ children }) => <ol className="list-decimal list-outside pl-5 mb-2 space-y-1">{children}</ol>,
         li: ({ children }) => <li className="text-sm">{children}</li>,
         h1: ({ children }) => <h1 className="text-base font-bold text-white mb-2">{children}</h1>,
         h2: ({ children }) => <h2 className="text-sm font-bold text-white mb-1.5">{children}</h2>,
@@ -361,10 +369,10 @@ export default function ChatPage() {
       {/* Sessions Sidebar */}
       {showSidebar && (
         <div className="w-64 flex-shrink-0 bg-surface_container_low border-r border-[#161f33] flex flex-col rounded-l-2xl overflow-hidden">
-          <div className="p-3 border-b border-[#161f33]">
+          <div className="h-12 px-3 border-b border-[#161f33] flex items-center flex-shrink-0">
             <button
               onClick={handleNewSession}
-              className="w-full flex items-center justify-center gap-2 bg-primary-gradient text-white py-2.5 px-4 rounded-xl font-medium shadow-[0_4px_20px_-4px_rgba(167,165,255,0.4)] hover:shadow-[0_4px_24px_-4px_rgba(167,165,255,0.6)] transition-all text-sm"
+              className="w-full flex items-center justify-center gap-2 bg-primary-gradient text-white py-1.5 px-4 rounded-xl font-medium shadow-[0_4px_20px_-4px_rgba(167,165,255,0.4)] hover:shadow-[0_4px_24px_-4px_rgba(167,165,255,0.6)] transition-all text-sm"
             >
               <Plus size={16} strokeWidth={2.5} />
               New Chat
@@ -384,20 +392,18 @@ export default function ChatPage() {
               sessions.map(session => (
                 <div
                   key={session.id}
-                  className={`group/session w-full text-left p-3 rounded-xl text-sm transition-all ${
+                  onClick={() => setActiveSessionId(session.id)}
+                  className={`group/session w-full text-left p-3 rounded-xl text-sm transition-all cursor-pointer ${
                     activeSessionId === session.id
                       ? 'bg-surface_container_high text-white font-medium'
                       : 'text-zinc-400 hover:text-zinc-200 hover:bg-surface_container'
                   }`}
                 >
                   <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setActiveSessionId(session.id)}
-                      className="flex items-center gap-2 flex-1 min-w-0 text-left"
-                    >
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
                       <MessageSquare size={14} className="flex-shrink-0" />
                       <span className="truncate">{session.title || 'New Conversation'}</span>
-                    </button>
+                    </div>
                     <button
                       onClick={(e) => { e.stopPropagation(); setSessionToDelete(session.id); }}
                       className="opacity-0 group-hover/session:opacity-100 p-1 text-zinc-500 hover:text-red-400 rounded transition-all flex-shrink-0"
@@ -447,7 +453,7 @@ export default function ChatPage() {
           {/* Messages area */}
           <div className="flex-1 flex flex-col min-w-0">
             <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide">
-              {!activeSessionId && messages.length === 0 && !isStreaming ? (
+              {messages.length === 0 && !isStreaming && !isLoadingMessages ? (
                 /* Welcome state */
                 <div className="flex-1 flex flex-col items-center justify-center h-full text-center px-4">
                   <div className="p-4 bg-primary/10 rounded-2xl mb-6 border border-primary/20">
@@ -460,10 +466,10 @@ export default function ChatPage() {
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-lg w-full">
                     {[
-                      'What are the key findings across my papers?',
-                      'Summarize the main methodologies used',
-                      'What research gaps exist in this topic?',
-                      'Compare the approaches in my papers',
+                      'List all the papers in my knowledge base',
+                      'What are the main results and conclusions from each paper?',
+                      'What methods and techniques are proposed in the papers?',
+                      'What future work is suggested in the papers?',
                     ].map((suggestion, idx) => (
                       <button
                         key={idx}
@@ -571,8 +577,7 @@ export default function ChatPage() {
 
             {/* Input area */}
             <div className="p-4 border-t border-[#161f33] flex-shrink-0">
-              <form onSubmit={handleSendMessage} className="flex gap-3 items-end">
-                <div className="flex-1 relative">
+              <form onSubmit={handleSendMessage} className="relative">
                   <textarea
                     ref={inputRef}
                     value={inputValue}
@@ -580,17 +585,16 @@ export default function ChatPage() {
                     onKeyDown={handleKeyDown}
                     placeholder="Ask about your research..."
                     rows={1}
-                    className="w-full bg-surface_container_high border border-[#161f33] rounded-xl px-4 py-3 text-white placeholder-zinc-400 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 text-sm transition-colors resize-none max-h-32 overflow-y-auto"
+                    className="block w-full bg-surface_container_high border border-[#161f33] rounded-xl px-4 py-3 pr-14 text-white placeholder-zinc-400 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 text-sm transition-colors resize-none max-h-32 overflow-y-auto"
                     style={{ minHeight: '44px' }}
                     disabled={isStreaming}
                   />
-                </div>
                 <button
                   type="submit"
                   disabled={isStreaming || !inputValue.trim()}
-                  className="p-3 bg-primary-gradient text-white rounded-xl shadow-[0_4px_20px_-4px_rgba(167,165,255,0.4)] hover:shadow-[0_4px_24px_-4px_rgba(167,165,255,0.6)] transition-all disabled:opacity-50 flex-shrink-0"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center justify-center w-8 h-8 bg-primary-gradient text-white rounded-lg shadow-[0_4px_20px_-4px_rgba(167,165,255,0.4)] hover:shadow-[0_4px_24px_-4px_rgba(167,165,255,0.6)] transition-all disabled:opacity-50"
                 >
-                  {isStreaming ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                  {isStreaming ? <Loader2 size={16} className="animate-spin" /> : <SendHorizontal size={16} />}
                 </button>
               </form>
               <p className="text-[10px] text-zinc-600 mt-2 text-center">

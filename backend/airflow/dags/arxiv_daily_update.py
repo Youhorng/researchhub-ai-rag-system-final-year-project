@@ -1,35 +1,24 @@
 import json
 import logging
-import os
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timezone
 
 import arxiv
 import httpx
 from airflow.decorators import dag, task
-from opensearchpy import OpenSearch
 from sqlalchemy import create_engine, text
+
+from _dag_config import (
+    DATABASE_URL,
+    OPENAI_API_KEY,
+    OPENAI_EMBEDDING_DIMENSIONS,
+    OPENAI_EMBEDDING_MODEL,
+    OPENSEARCH_INDEX_NAME,
+    get_opensearch_client,
+)
 
 # Configure the logging
 logger = logging.getLogger(__name__)
-
-# Environment variables (since we can't import src.config securely in Airflow 2.10)
-POSTGRES_USER = os.environ.get("POSTGRES_USER", "rag_user")
-POSTGRES_PASSWORD = os.environ.get("POSTGRES_PASSWORD", "rag_password")
-POSTGRES_HOST = os.environ.get("POSTGRES_HOST", "postgres")
-POSTGRES_PORT = os.environ.get("POSTGRES_PORT", "5432")
-POSTGRES_DB = os.environ.get("POSTGRES_DB", "rag_db")
-
-OPENSEARCH_HOST = os.environ.get("OPENSEARCH__HOST", "http://opensearch:9200")
-OPENSEARCH_USER = os.environ.get("OPENSEARCH_USER", "admin")
-OPENSEARCH_PASSWORD = os.environ.get("OPENSEARCH_PASSWORD", "admin")
-OPENSEARCH_INDEX_NAME = os.environ.get("OPENSEARCH__INDEX_NAME", "arxiv-papers")
-
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
-OPENAI_EMBEDDING_MODEL = "text-embedding-3-small"
-OPENAI_EMBEDDING_DIMENSIONS = 1024
-
-DATABASE_URL = f"postgresql+psycopg2://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
 
 # Only index papers from these specific CS/ML categories
 TARGET_CATEGORIES = [
@@ -39,21 +28,8 @@ TARGET_CATEGORIES = [
     "stat.ML",
 ]
 
-def get_opensearch_client():
-    return OpenSearch(
-        hosts=[OPENSEARCH_HOST],
-        http_auth=(OPENSEARCH_USER, OPENSEARCH_PASSWORD),
-        use_ssl=False,
-        verify_certs=False,
-        ssl_assert_hostname=False,
-        ssl_show_warn=False,
-    )
 
 def get_embeddings(texts: list[str]) -> list[list[float]]:
-    if not OPENAI_API_KEY:
-        logger.error("OPENAI_API_KEY is not set!")
-        return [[0.0] * OPENAI_EMBEDDING_DIMENSIONS for _ in texts]
-
     headers = {
         "Authorization": f"Bearer {OPENAI_API_KEY}",
         "Content-Type": "application/json",
@@ -82,22 +58,22 @@ def is_relevant_category(categories: list[str]) -> bool:
 @dag(
     dag_id="arxiv_daily_update",
     start_date=datetime(2024, 1, 1),
-    schedule="@daily", # Run natively every midnight
+    schedule="@daily",  # Run natively every midnight
     catchup=False,
     tags=["arxiv", "daily"],
 )
 def arxiv_daily_update_dag():
-    
+
     @task
     def fetch_and_index_new_papers():
         logger.info("Starting daily ArXiv fetch...")
         engine = create_engine(DATABASE_URL)
         os_client = get_opensearch_client()
-        
+
         try:
             with engine.connect() as db_conn:
-                # Query arXiv for papers added/updated in "Computer Science"
-                # Sort by submission date, descending. We'll just grab the 100 most recent
+                # Query arXiv for papers added/updated in target CS/ML categories.
+                # Sort by submission date, descending. Grab the 100 most recent
                 # each day for this MVP to avoid rate limits.
                 category_query = " OR ".join(f"cat:{c}" for c in TARGET_CATEGORIES)
                 search = arxiv.Search(
@@ -106,16 +82,16 @@ def arxiv_daily_update_dag():
                     sort_by=arxiv.SortCriterion.SubmittedDate,
                     sort_order=arxiv.SortOrder.Descending
                 )
-                
+
                 client = arxiv.Client(
                     page_size=100,
                     delay_seconds=3.0,
                     num_retries=3
                 )
-                
+
                 papers_data = []
                 texts_to_embed = []
-                
+
                 # 1. Fetch from ArXiv API
                 for result in client.results(search):
                     arxiv_id = result.get_short_id()
@@ -123,17 +99,17 @@ def arxiv_daily_update_dag():
                     abstract = result.summary.replace("\n", " ").strip()
                     authors = [author.name for author in result.authors]
                     categories = result.categories
-                    
+
                     # Double check relevance
                     if not is_relevant_category(categories):
                         continue
-                        
+
                     # Skip if we already have it in the DB (deduplication)
                     check_sql = text("SELECT id FROM papers WHERE arxiv_id = :arxiv_id")
                     existing = db_conn.execute(check_sql, {"arxiv_id": arxiv_id}).fetchone()
                     if existing:
                         continue
-                        
+
                     papers_data.append({
                         "arxiv_id": arxiv_id,
                         "title": title,
@@ -143,20 +119,20 @@ def arxiv_daily_update_dag():
                         "published_at": result.published.date(),
                         "pdf_url": result.pdf_url
                     })
-                    
+
                     texts_to_embed.append(f"{title}. {abstract}")
-                    
+
                 if not papers_data:
                     logger.info("No new relevant papers found today.")
                     return
-                    
+
                 logger.info(f"Found {len(papers_data)} new papers. Processing embeddings...")
-                
+
                 # 2. Get embeddings
                 embeddings = get_embeddings(texts_to_embed)
                 os_bulk_data = ""
-                
-                # 3. Save to Postgres
+
+                # 3. Save to Postgres + prepare OpenSearch bulk data
                 with db_conn.begin():
                     for data, vector in zip(papers_data, embeddings):
                         insert_sql = text('''
@@ -167,12 +143,12 @@ def arxiv_daily_update_dag():
                             "id": str(uuid.uuid4()),
                             "arxiv_id": data["arxiv_id"],
                             "title": data["title"],
-                            "authors": data["authors"],
+                            "authors": list(data["authors"]),
                             "abstract": data["abstract"],
-                            "categories": data["categories"],
+                            "categories": list(data["categories"]),
                             "published_at": data["published_at"],
                             "pdf_url": data["pdf_url"],
-                            "indexed_at": datetime.utcnow()
+                            "indexed_at": datetime.now(timezone.utc)
                         })
 
                         # 4. Prepare OpenSearch bulk data
@@ -191,13 +167,13 @@ def arxiv_daily_update_dag():
                             "abstract_vector": vector
                         }
                         os_bulk_data += json.dumps(action) + "\n" + json.dumps(document) + "\n"
-                
+
                 # 5. Push to OpenSearch
                 if os_bulk_data:
                     os_client.bulk(body=os_bulk_data)
-                    
+
                 logger.info(f"Successfully processed {len(papers_data)} new papers.")
-            
+
         except Exception as e:
             logger.error(f"Error in daily update: {e}")
             raise

@@ -48,6 +48,97 @@ def _search_chunks(
     return chunks
 
 
+def _fill_missing_sources(
+    os_client: OpenSearch,
+    existing_chunks: list[dict],
+    query_vector: list[float],
+    project_id: str,
+) -> list[dict]:
+    """Ensure at least one chunk per paper/document in the project.
+
+    After the initial retrieval, some papers may have no chunks in the results.
+    For each missing source, fetch its best-matching chunk so the LLM has
+    context from every paper in the knowledge base.
+    """
+    chunk_index = f"{settings.opensearch.index_name}-{settings.opensearch.chunk_index_suffix}"
+
+    # Collect source keys already covered
+    covered = set()
+    for c in existing_chunks:
+        key = c.get("paper_id") or c.get("document_id") or ""
+        if key:
+            covered.add(key)
+
+    if not covered and not existing_chunks:
+        # Nothing retrieved at all — fetch broadly
+        pass
+
+    # Find all unique sources in the project
+    try:
+        agg_query = {
+            "size": 0,
+            "query": {"bool": {"filter": [{"term": {"project_id": project_id}}]}},
+            "aggs": {
+                "papers": {"terms": {"field": "paper_id", "size": 50}},
+                "documents": {"terms": {"field": "document_id", "size": 50}},
+            },
+        }
+        agg_resp = os_client.search(index=chunk_index, body=agg_query)
+        all_sources = set()
+        for bucket in agg_resp.get("aggregations", {}).get("papers", {}).get("buckets", []):
+            if bucket["key"]:
+                all_sources.add(("paper_id", bucket["key"]))
+        for bucket in agg_resp.get("aggregations", {}).get("documents", {}).get("buckets", []):
+            if bucket["key"]:
+                all_sources.add(("document_id", bucket["key"]))
+    except Exception:
+        logger.exception("Failed to aggregate sources for diversity fill")
+        return existing_chunks
+
+    # Find missing sources
+    missing = [(field, val) for field, val in all_sources if val not in covered]
+    if not missing:
+        return existing_chunks
+
+    # For each missing source, fetch its best chunks by vector similarity
+    extra_chunks = []
+    for field, source_id in missing:
+        try:
+            fill_query = {
+                "size": 2,
+                "query": {
+                    "script_score": {
+                        "query": {
+                            "bool": {
+                                "filter": [
+                                    {"term": {"project_id": project_id}},
+                                    {"term": {field: source_id}},
+                                ]
+                            }
+                        },
+                        "script": {
+                            "source": "knn_score",
+                            "lang": "knn",
+                            "params": {
+                                "field": "chunk_vector",
+                                "query_value": query_vector,
+                                "space_type": settings.opensearch.vector_space_type,
+                            },
+                        },
+                    }
+                },
+            }
+            resp = os_client.search(index=chunk_index, body=fill_query)
+            for hit in resp.get("hits", {}).get("hits", []):
+                src = hit["_source"]
+                src["_score"] = hit.get("_score", 0.0)
+                extra_chunks.append(src)
+        except Exception:
+            logger.warning("Failed to fill chunk for %s=%s", field, source_id)
+
+    return existing_chunks + extra_chunks
+
+
 def make_retrieve_node(os_client: OpenSearch, trace):
     """Factory that returns a retrieve node with access to OpenSearch client and trace."""
 
@@ -67,7 +158,11 @@ def make_retrieve_node(os_client: OpenSearch, trace):
         # Retrieve
         t0 = time.time()
         retrieve_span = trace.start_span(name="retrieve", input=query_text)
-        chunks = _search_chunks(os_client, query_text, query_vector, state["project_id"])
+        chunks = _search_chunks(os_client, query_text, query_vector, state["project_id"], size=15)
+
+        # Ensure coverage across all papers/documents in the project
+        chunks = _fill_missing_sources(os_client, chunks, query_vector, state["project_id"])
+
         retrieve_ms = round((time.time() - t0) * 1000)
         retrieve_span.update(output={"num_chunks": len(chunks), "latency_ms": retrieve_ms})
         retrieve_span.end()

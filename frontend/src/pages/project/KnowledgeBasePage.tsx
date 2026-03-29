@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useOutletContext, useParams } from 'react-router-dom';
 import { useAuth } from '@clerk/react';
 import {
-  BookOpen, FileText, Database, Search, Plus, Trash2, Loader2,
+  BookOpen, FileText, Database, Search, Trash2, Loader2,
   CheckCircle2, XCircle, Upload, Sparkles, ChevronDown, ChevronUp, ExternalLink, Tag
 } from 'lucide-react';
 

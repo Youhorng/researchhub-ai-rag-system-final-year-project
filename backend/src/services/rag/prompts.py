@@ -1,21 +1,25 @@
 """System prompt and source formatting for the RAG pipeline."""
 
 SYSTEM_TEMPLATE = """You are ResearchHub AI, a helpful research assistant.
-Answer the user's question using ONLY the provided sources below.
-If the sources do not contain enough information, say so honestly.
+Answer the user's question based on the provided sources below.
+Synthesize information from the sources to give a comprehensive answer.
 
 Rules:
 - Cite sources using [1], [2], etc. inline in your answer.
 - Every factual claim must have at least one citation.
 - Do NOT fabricate information beyond what the sources provide.
-- Be concise and focused.
+- If the sources contain partial information, summarize what is available
+  and note what is not covered.
+- Be thorough when the user asks about multiple papers — cover each source.
 
-{sources_block}"""
+{kb_block}{sources_block}"""
 
 SYSTEM_TEMPLATE_NO_SOURCES = """You are ResearchHub AI, a helpful research assistant.
 
-No relevant sources were found in the user's knowledge base for this question.
-You may answer from your general knowledge, but you MUST:
+{kb_block}No relevant source excerpts were found for this specific question.
+If the user is asking about what papers or documents are in their knowledge base,
+use the knowledge base inventory above to answer.
+Otherwise, you may answer from your general knowledge, but you MUST:
 - Start your answer with a brief note: "I couldn't find relevant sources in your knowledge base for this question, but here's what I know:"
 - Answer helpfully and accurately from general knowledge.
 - Do NOT use citation markers like [1], [2] since there are no sources.
@@ -140,19 +144,34 @@ def build_sources_block(grouped_sources: list[dict]) -> str:
     return "Sources:\n" + "\n\n".join(lines)
 
 
+def _build_kb_block(paper_titles: list[str]) -> str:
+    """Format the knowledge base inventory block for the system prompt."""
+    if not paper_titles:
+        return ""
+    listing = "\n".join(f"- {t}" for t in paper_titles)
+    return (
+        f"The user's knowledge base contains the following papers/documents:\n"
+        f"{listing}\n\n"
+    )
+
+
 def build_system_message(
     chunks: list[dict],
     grouped_sources: list[dict] | None = None,
+    paper_titles: list[str] | None = None,
 ) -> str:
     """Build the full system message with sources injected.
 
     If grouped_sources is provided, uses it directly (avoids re-grouping).
     Otherwise groups and deduplicates from raw chunks.
+    paper_titles is an optional list of all accepted paper/document titles
+    in the project's knowledge base.
     """
+    kb_block = _build_kb_block(paper_titles or [])
     if not chunks and not grouped_sources:
-        return SYSTEM_TEMPLATE_NO_SOURCES
+        return SYSTEM_TEMPLATE_NO_SOURCES.format(kb_block=kb_block)
     if grouped_sources is None:
         grouped_sources = group_chunks_by_source(chunks)
         grouped_sources = merge_duplicate_sources(grouped_sources)
     sources_block = build_sources_block(grouped_sources)
-    return SYSTEM_TEMPLATE.format(sources_block=sources_block)
+    return SYSTEM_TEMPLATE.format(kb_block=kb_block, sources_block=sources_block)

@@ -14,9 +14,13 @@ research context — for example:
 - Requests entirely outside academia ("order me a pizza", "what's the weather")
 - Harmful or abusive content
 
-Mark the query as IN-SCOPE if it relates to ANY academic topic, methodology, concept,
-or could reasonably help someone doing research — even if the topic is not directly
-about the specific project keywords. Researchers often explore adjacent fields.
+Mark the query as IN-SCOPE if:
+- It relates to ANY academic topic, methodology, concept, or could reasonably help
+  someone doing research — even if the topic is not directly about the specific
+  project keywords. Researchers often explore adjacent fields.
+- It asks about the contents of the knowledge base, such as listing papers,
+  summarizing documents, or asking what has been indexed. These are valid research
+  queries about the user's own collected literature.
 
 When in doubt, mark as in-scope.
 
@@ -31,6 +35,10 @@ The user asked: "{query}"
 Below are retrieved document chunks. For each chunk, determine if it is relevant
 to answering the user's query. A chunk is relevant if it contains information that
 could help answer the query, even partially.
+
+Be generous with relevance — if the user asks a broad question (e.g. about findings,
+methods, or summaries across papers), any chunk that describes a paper's contributions,
+results, methods, abstract, or conclusions should be marked as relevant.
 
 Chunks:
 {chunks_text}
