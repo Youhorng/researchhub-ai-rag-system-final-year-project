@@ -48,6 +48,19 @@ def _split_into_sections(text: str) -> list[str]:
     return sections
 
 
+_SENTENCE_SEPS = [". ", ".\n", "? ", "! ", "?\n", "!\n"]
+
+
+def _find_sentence_break(window: str) -> int:
+    """Return the position of the last sentence boundary in window, or -1."""
+    best_break = -1
+    for sep in _SENTENCE_SEPS:
+        pos = window.rfind(sep)
+        if pos > best_break:
+            best_break = pos
+    return best_break
+
+
 def _fixed_size_chunk(text: str, chunk_size: int, overlap: int) -> list[str]:
     """Sliding-window chunker that tries to break on sentence boundaries.
 
@@ -72,26 +85,15 @@ def _fixed_size_chunk(text: str, chunk_size: int, overlap: int) -> list[str]:
     while start < len(text):
         end = start + chunk_size
 
-        # If we haven't reached the end, try to break at a sentence boundary
         if end < len(text):
-            # Look for the last sentence-ending punctuation within the window
-            window = text[start:end]
-            # Find last '. ' or '.\n' or '? ' or '! ' in the window
-            best_break = -1
-            for sep in [". ", ".\n", "? ", "! ", "?\n", "!\n"]:
-                pos = window.rfind(sep)
-                if pos > best_break:
-                    best_break = pos
-
+            best_break = _find_sentence_break(text[start:end])
             if best_break > chunk_size // 3:
-                # Break after the punctuation character
                 end = start + best_break + 1
 
         chunk = text[start:end].strip()
         if chunk:
             chunks.append(chunk)
 
-        # Advance by (end - start - overlap), but at least 1 to avoid infinite loop
         step = max(end - start - overlap, 1)
         start += step
 

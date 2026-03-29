@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '@clerk/react';
 import ReactMarkdown from 'react-markdown';
@@ -31,6 +31,47 @@ interface ChatMessage {
   cited_sources: CitedSource[] | null;
   created_at: string;
 }
+
+// Preprocess markdown to fix broken numbered lists
+// Handles: "1.\n**Bold:**", "1. \n**Bold:**", "1.\n\n**Bold:**"
+const preprocessMarkdown = (content: string) =>
+  content.replaceAll(/(\d+)\.\s*\n+\s*\*\*/g, '$1. **');
+
+// Render markdown content (module-level to avoid re-creation on each render)
+const renderMarkdown = (content: string) => (
+  <ReactMarkdown
+    remarkPlugins={[remarkGfm]}
+    components={{
+      p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+      strong: ({ children }) => <strong className="font-semibold text-white">{children}</strong>,
+      em: ({ children }) => <em className="italic">{children}</em>,
+      ul: ({ children }) => <ul className="list-disc list-outside pl-5 mb-2 space-y-1">{children}</ul>,
+      ol: ({ children }) => <ol className="list-decimal list-outside pl-5 mb-2 space-y-1">{children}</ol>,
+      li: ({ children }) => <li className="text-sm">{children}</li>,
+      h1: ({ children }) => <h1 className="text-base font-bold text-white mb-2">{children}</h1>,
+      h2: ({ children }) => <h2 className="text-sm font-bold text-white mb-1.5">{children}</h2>,
+      h3: ({ children }) => <h3 className="text-sm font-semibold text-white mb-1">{children}</h3>,
+      code: ({ children, className }) => {
+        const isBlock = className?.includes('language-');
+        return isBlock ? (
+          <pre className="bg-surface_container_lowest p-3 rounded-lg border border-[#212c43] overflow-x-auto my-2">
+            <code className="text-xs text-zinc-300">{children}</code>
+          </pre>
+        ) : (
+          <code className="bg-surface_container_lowest px-1.5 py-0.5 rounded text-xs text-indigo-300 border border-[#212c43]">{children}</code>
+        );
+      },
+      blockquote: ({ children }) => (
+        <blockquote className="border-l-2 border-indigo-500/40 pl-3 my-2 text-zinc-400 italic">{children}</blockquote>
+      ),
+      a: ({ href, children }) => (
+        <a href={href} target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:text-indigo-300 underline">{children}</a>
+      ),
+    }}
+  >
+    {preprocessMarkdown(content)}
+  </ReactMarkdown>
+);
 
 export default function ChatPage() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -145,32 +186,82 @@ export default function ChatPage() {
     }
   };
 
+  // Create a session inline (used when sending first message without an active session)
+  const createNewSession = async (): Promise<string | null> => {
+    try {
+      const token = await getToken();
+      const res = await fetch(`${apiUrl}/projects/${projectId}/chat/sessions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ title: null })
+      });
+      if (res.ok) {
+        const session = await res.json();
+        setSessions(prev => [session, ...prev]);
+        inlineCreatedSessionRef.current = session.id;
+        setActiveSessionId(session.id);
+        return session.id;
+      }
+      return null;
+    } catch (err) {
+      console.error('Failed to create session', err);
+      return null;
+    }
+  };
+
+  // Parse SSE stream into full content and citations
+  const processStream = async (
+    reader: ReadableStreamDefaultReader<Uint8Array>
+  ): Promise<{ fullContent: string; citations: CitedSource[] }> => {
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let fullContent = '';
+    let citations: CitedSource[] = [];
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const jsonStr = line.slice(6).trim();
+        if (!jsonStr) continue;
+
+        try {
+          const event = JSON.parse(jsonStr);
+          if (event.type === 'chunk') {
+            fullContent += event.content;
+            setStreamingContent(fullContent);
+          } else if (event.type === 'citations') {
+            citations = event.sources || [];
+            setStreamingCitations(citations);
+          } else if (event.type === 'error') {
+            console.error('SSE error:', event.message);
+            fullContent += `\n\n*Error: ${event.message}*`;
+            setStreamingContent(fullContent);
+          }
+        } catch {
+          // ignore parse errors
+        }
+      }
+    }
+
+    return { fullContent, citations };
+  };
+
   // Send message with SSE streaming
-  const handleSendMessage = async (e: React.FormEvent) => {
+  const handleSendMessage = async (e: React.SyntheticEvent) => {
     e.preventDefault();
     if (!inputValue.trim() || isStreaming) return;
 
-    // Create session if none active
     let sessionId = activeSessionId;
     if (!sessionId) {
-      try {
-        const token = await getToken();
-        const res = await fetch(`${apiUrl}/projects/${projectId}/chat/sessions`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-          body: JSON.stringify({ title: null })
-        });
-        if (res.ok) {
-          const session = await res.json();
-          setSessions(prev => [session, ...prev]);
-          sessionId = session.id;
-          inlineCreatedSessionRef.current = session.id;
-          setActiveSessionId(session.id);
-        }
-      } catch (err) {
-        console.error('Failed to create session', err);
-        return;
-      }
+      sessionId = await createNewSession();
+      if (!sessionId) return;
     }
 
     const userMessage = inputValue.trim();
@@ -182,7 +273,7 @@ export default function ChatPage() {
     // Add optimistic user message
     const optimisticUserMsg: ChatMessage = {
       id: `temp-${Date.now()}`,
-      session_id: sessionId!,
+      session_id: sessionId,
       role: 'user',
       content: userMessage,
       cited_sources: null,
@@ -198,56 +289,17 @@ export default function ChatPage() {
         body: JSON.stringify({ content: userMessage })
       });
 
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
-      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-      // Parse SSE stream
       const reader = res.body?.getReader();
       if (!reader) throw new Error('No reader');
 
-      const decoder = new TextDecoder();
-      let buffer = '';
-      let fullContent = '';
-      let citations: CitedSource[] = [];
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-          const jsonStr = line.slice(6).trim();
-          if (!jsonStr) continue;
-
-          try {
-            const event = JSON.parse(jsonStr);
-
-            if (event.type === 'chunk') {
-              fullContent += event.content;
-              setStreamingContent(fullContent);
-            } else if (event.type === 'citations') {
-              citations = event.sources || [];
-              setStreamingCitations(citations);
-            } else if (event.type === 'error') {
-              console.error('SSE error:', event.message);
-              fullContent += `\n\n*Error: ${event.message}*`;
-              setStreamingContent(fullContent);
-            }
-          } catch {
-            // ignore parse errors
-          }
-        }
-      }
+      const { fullContent, citations } = await processStream(reader);
 
       // Finalize: add assistant message to list
       const assistantMsg: ChatMessage = {
         id: `assistant-${Date.now()}`,
-        session_id: sessionId!,
+        session_id: sessionId,
         role: 'assistant',
         content: fullContent,
         cited_sources: citations.length > 0 ? citations : null,
@@ -322,47 +374,52 @@ export default function ChatPage() {
     }
   };
 
-  // Preprocess markdown to fix broken numbered lists
-  // Handles: "1.\n**Bold:**", "1. \n**Bold:**", "1.\n\n**Bold:**"
-  const preprocessMarkdown = (content: string) => {
-    return content.replace(/(\d+)\.\s*\n+\s*\*\*/g, '$1. **');
-  };
-
-  // Render markdown content
-  const renderMarkdown = (content: string) => (
-    <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
-      components={{
-        p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
-        strong: ({ children }) => <strong className="font-semibold text-white">{children}</strong>,
-        em: ({ children }) => <em className="italic">{children}</em>,
-        ul: ({ children }) => <ul className="list-disc list-outside pl-5 mb-2 space-y-1">{children}</ul>,
-        ol: ({ children }) => <ol className="list-decimal list-outside pl-5 mb-2 space-y-1">{children}</ol>,
-        li: ({ children }) => <li className="text-sm">{children}</li>,
-        h1: ({ children }) => <h1 className="text-base font-bold text-white mb-2">{children}</h1>,
-        h2: ({ children }) => <h2 className="text-sm font-bold text-white mb-1.5">{children}</h2>,
-        h3: ({ children }) => <h3 className="text-sm font-semibold text-white mb-1">{children}</h3>,
-        code: ({ children, className }) => {
-          const isBlock = className?.includes('language-');
-          return isBlock ? (
-            <pre className="bg-surface_container_lowest p-3 rounded-lg border border-[#212c43] overflow-x-auto my-2">
-              <code className="text-xs text-zinc-300">{children}</code>
-            </pre>
-          ) : (
-            <code className="bg-surface_container_lowest px-1.5 py-0.5 rounded text-xs text-indigo-300 border border-[#212c43]">{children}</code>
-          );
-        },
-        blockquote: ({ children }) => (
-          <blockquote className="border-l-2 border-indigo-500/40 pl-3 my-2 text-zinc-400 italic">{children}</blockquote>
-        ),
-        a: ({ href, children }) => (
-          <a href={href} target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:text-indigo-300 underline">{children}</a>
-        ),
-      }}
-    >
-      {preprocessMarkdown(content)}
-    </ReactMarkdown>
-  );
+  // Sessions sidebar content
+  let sessionsListContent: React.ReactNode;
+  if (isLoadingSessions) {
+    sessionsListContent = (
+      <div className="flex justify-center py-8">
+        <Loader2 size={20} className="animate-spin text-zinc-500" />
+      </div>
+    );
+  } else if (sessions.length === 0) {
+    sessionsListContent = (
+      <div className="text-center py-8 px-4">
+        <MessageSquare className="text-zinc-600 mx-auto mb-2" size={24} />
+        <p className="text-xs text-zinc-500">No conversations yet</p>
+      </div>
+    );
+  } else {
+    sessionsListContent = sessions.map(session => (
+      <button
+        type="button"
+        key={session.id}
+        onClick={() => setActiveSessionId(session.id)}
+        className={`group/session w-full text-left p-3 rounded-xl text-sm transition-all cursor-pointer ${
+          activeSessionId === session.id
+            ? 'bg-surface_container_high text-white font-medium'
+            : 'text-zinc-400 hover:text-zinc-200 hover:bg-surface_container'
+        }`}
+      >
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <MessageSquare size={14} className="flex-shrink-0" />
+            <span className="truncate">{session.title || 'New Conversation'}</span>
+          </div>
+          <button
+            onClick={(e) => { e.stopPropagation(); setSessionToDelete(session.id); }}
+            className="opacity-0 group-hover/session:opacity-100 p-1 text-zinc-500 hover:text-red-400 rounded transition-all flex-shrink-0"
+            title="Delete conversation"
+          >
+            <Trash2 size={12} />
+          </button>
+        </div>
+        <p className="text-[10px] text-zinc-600 mt-1 pl-5">
+          {new Date(session.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+        </p>
+      </button>
+    ));
+  }
 
   return (
     <div className="flex h-[calc(100vh-7.5rem)] gap-0 animate-in fade-in duration-300">
@@ -379,45 +436,7 @@ export default function ChatPage() {
             </button>
           </div>
           <div className="flex-1 overflow-y-auto scrollbar-hide p-2 space-y-1">
-            {isLoadingSessions ? (
-              <div className="flex justify-center py-8">
-                <Loader2 size={20} className="animate-spin text-zinc-500" />
-              </div>
-            ) : sessions.length === 0 ? (
-              <div className="text-center py-8 px-4">
-                <MessageSquare className="text-zinc-600 mx-auto mb-2" size={24} />
-                <p className="text-xs text-zinc-500">No conversations yet</p>
-              </div>
-            ) : (
-              sessions.map(session => (
-                <div
-                  key={session.id}
-                  onClick={() => setActiveSessionId(session.id)}
-                  className={`group/session w-full text-left p-3 rounded-xl text-sm transition-all cursor-pointer ${
-                    activeSessionId === session.id
-                      ? 'bg-surface_container_high text-white font-medium'
-                      : 'text-zinc-400 hover:text-zinc-200 hover:bg-surface_container'
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                      <MessageSquare size={14} className="flex-shrink-0" />
-                      <span className="truncate">{session.title || 'New Conversation'}</span>
-                    </div>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setSessionToDelete(session.id); }}
-                      className="opacity-0 group-hover/session:opacity-100 p-1 text-zinc-500 hover:text-red-400 rounded transition-all flex-shrink-0"
-                      title="Delete conversation"
-                    >
-                      <Trash2 size={12} />
-                    </button>
-                  </div>
-                  <p className="text-[10px] text-zinc-600 mt-1 pl-5">
-                    {new Date(session.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                  </p>
-                </div>
-              ))
-            )}
+            {sessionsListContent}
           </div>
         </div>
       )}
@@ -470,9 +489,9 @@ export default function ChatPage() {
                       'What are the main results and conclusions from each paper?',
                       'What methods and techniques are proposed in the papers?',
                       'What future work is suggested in the papers?',
-                    ].map((suggestion, idx) => (
+                    ].map((suggestion) => (
                       <button
-                        key={idx}
+                        key={suggestion}
                         onClick={() => {
                           setInputValue(suggestion);
                           inputRef.current?.focus();
@@ -512,14 +531,15 @@ export default function ChatPage() {
                             {msg.role === 'assistant' ? renderMarkdown(msg.content) : <div className="whitespace-pre-wrap">{msg.content}</div>}
                           </div>
                           {msg.role === 'assistant' && msg.cited_sources && msg.cited_sources.length > 0 && (() => {
-                            const unique = deduplicateCitations(msg.cited_sources!);
+                            const sources = msg.cited_sources;
+                            const unique = deduplicateCitations(sources);
                             return (
                               <button
-                                onClick={() => handleShowCitations(msg.cited_sources!)}
+                                onClick={() => handleShowCitations(sources)}
                                 className="flex items-center gap-1.5 mt-2 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
                               >
                                 <BookOpen size={12} />
-                                {unique.length} source{unique.length !== 1 ? 's' : ''}
+                                {unique.length === 1 ? '1 source' : `${unique.length} sources`}
                                 <ChevronRight size={12} />
                               </button>
                             );
@@ -547,7 +567,7 @@ export default function ChatPage() {
                               className="flex items-center gap-1.5 mt-2 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
                             >
                               <BookOpen size={12} />
-                              {unique.length} source{unique.length !== 1 ? 's' : ''}
+                              {unique.length === 1 ? '1 source' : `${unique.length} sources`}
                               <ChevronRight size={12} />
                             </button>
                           );
@@ -647,9 +667,9 @@ export default function ChatPage() {
                 </h3>
               </div>
               <div className="p-3 space-y-2">
-                {selectedMessageCitations.map((source, idx) => (
+                {selectedMessageCitations.map((source) => (
                   <div
-                    key={idx}
+                    key={source.index}
                     className="p-3 bg-surface_container_high rounded-xl border border-[#161f33]"
                   >
                     <div className="flex items-start gap-2">

@@ -185,46 +185,34 @@ export default function ProjectDashboardPage() {
               View all <ArrowRight size={12} />
             </button>
           </div>
-          {isLoading ? (
-            <div className="flex justify-center py-6">
-              <Loader2 size={18} className="animate-spin text-zinc-500" />
-            </div>
-          ) : sessions.length === 0 ? (
-            <div className="text-center py-6">
-              <MessageSquare size={28} className="text-zinc-600 mx-auto mb-2" />
-              <p className="text-zinc-500 text-sm">No chats yet</p>
-              <button
-                onClick={() => navigate(`/dashboard/projects/${projectId}/chat`)}
-                className="mt-3 text-xs text-amber-400 hover:text-amber-300 transition-colors"
-              >
-                Start your first chat →
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-1">
-              {sessions.slice(0, 4).map(session => (
-                <button
-                  key={session.id}
-                  onClick={() => navigate(`/dashboard/projects/${projectId}/chat`)}
-                  className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-surface_container transition-colors text-left group"
-                >
-                  <div className="p-1.5 bg-amber-500/10 rounded-lg flex-shrink-0">
-                    <Sparkles size={13} className="text-amber-400" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-white truncate group-hover:text-amber-300 transition-colors">
-                      {session.title || 'Untitled Chat'}
-                    </p>
-                    <p className="text-xs text-zinc-500 flex items-center gap-1 mt-0.5">
-                      <Clock size={10} />
-                      {getTimeAgo(session.updated_at)}
-                    </p>
-                  </div>
-                  <ArrowRight size={13} className="text-zinc-600 group-hover:text-zinc-400 flex-shrink-0 transition-colors" />
-                </button>
-              ))}
-            </div>
-          )}
+          {(() => {
+            if (isLoading) {
+              return <div className="flex justify-center py-6"><Loader2 size={18} className="animate-spin text-zinc-500" /></div>;
+            }
+            if (sessions.length === 0) {
+              return (
+                <div className="text-center py-6">
+                  <MessageSquare size={28} className="text-zinc-600 mx-auto mb-2" />
+                  <p className="text-zinc-500 text-sm">No chats yet</p>
+                  <button onClick={() => navigate(`/dashboard/projects/${projectId}/chat`)} className="mt-3 text-xs text-amber-400 hover:text-amber-300 transition-colors">Start your first chat →</button>
+                </div>
+              );
+            }
+            return (
+              <div className="space-y-1">
+                {sessions.slice(0, 4).map(session => (
+                  <button key={session.id} onClick={() => navigate(`/dashboard/projects/${projectId}/chat`)} className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-surface_container transition-colors text-left group">
+                    <div className="p-1.5 bg-amber-500/10 rounded-lg flex-shrink-0"><Sparkles size={13} className="text-amber-400" /></div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-white truncate group-hover:text-amber-300 transition-colors">{session.title || 'Untitled Chat'}</p>
+                      <p className="text-xs text-zinc-500 flex items-center gap-1 mt-0.5"><Clock size={10} />{getTimeAgo(session.updated_at)}</p>
+                    </div>
+                    <ArrowRight size={13} className="text-zinc-600 group-hover:text-zinc-400 flex-shrink-0 transition-colors" />
+                  </button>
+                ))}
+              </div>
+            );
+          })()}
         </div>
 
         {/* Topics */}
@@ -238,33 +226,27 @@ export default function ProjectDashboardPage() {
               View all <ArrowRight size={12} />
             </button>
           </div>
-          {isLoading ? (
-            <div className="flex justify-center py-6">
-              <Loader2 size={18} className="animate-spin text-zinc-500" />
-            </div>
-          ) : topics.length === 0 ? (
-            <div className="text-center py-6">
-              <Tag size={28} className="text-zinc-600 mx-auto mb-2" />
-              <p className="text-zinc-500 text-sm">No topics yet</p>
-              <button
-                onClick={() => navigate(`/dashboard/projects/${projectId}/topics`)}
-                className="mt-3 text-xs text-fuchsia-400 hover:text-fuchsia-300 transition-colors"
-              >
-                Create your first topic →
-              </button>
-            </div>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {topics.map(topic => (
-                <span
-                  key={topic.id}
-                  className="px-3 py-1.5 bg-fuchsia-500/10 border border-fuchsia-500/20 text-fuchsia-300 text-xs font-medium rounded-full"
-                >
-                  {topic.name}
-                </span>
-              ))}
-            </div>
-          )}
+          {(() => {
+            if (isLoading) {
+              return <div className="flex justify-center py-6"><Loader2 size={18} className="animate-spin text-zinc-500" /></div>;
+            }
+            if (topics.length === 0) {
+              return (
+                <div className="text-center py-6">
+                  <Tag size={28} className="text-zinc-600 mx-auto mb-2" />
+                  <p className="text-zinc-500 text-sm">No topics yet</p>
+                  <button onClick={() => navigate(`/dashboard/projects/${projectId}/topics`)} className="mt-3 text-xs text-fuchsia-400 hover:text-fuchsia-300 transition-colors">Create your first topic →</button>
+                </div>
+              );
+            }
+            return (
+              <div className="flex flex-wrap gap-2">
+                {topics.map(topic => (
+                  <span key={topic.id} className="px-3 py-1.5 bg-fuchsia-500/10 border border-fuchsia-500/20 text-fuchsia-300 text-xs font-medium rounded-full">{topic.name}</span>
+                ))}
+              </div>
+            );
+          })()}
         </div>
       </div>
 

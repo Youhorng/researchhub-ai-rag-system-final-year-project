@@ -49,6 +49,7 @@ class _NoOpSpan:
     """Stub span that silently ignores all calls."""
 
     def end(self, **kwargs):
+        # Intentional no-op — tracing is disabled
         pass
 
     def update(self, **kwargs):
@@ -61,6 +62,7 @@ class _NoOpSpan:
         return _NoOpSpan()
 
     def update_trace(self, **kwargs):
+        # Intentional no-op — tracing is disabled
         pass
 
 

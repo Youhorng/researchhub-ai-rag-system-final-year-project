@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@clerk/react';
 import { X, Loader2, FolderOpen, Check, ChevronDown, Tag } from 'lucide-react';
 
@@ -21,8 +21,8 @@ interface ExploreHit {
 }
 
 interface AddToProjectModalProps {
-  paper: ExploreHit | null;
-  onClose: () => void;
+  readonly paper: ExploreHit | null;
+  readonly onClose: () => void;
 }
 
 export default function AddToProjectModal({ paper, onClose }: AddToProjectModalProps) {
@@ -117,6 +117,10 @@ export default function AddToProjectModal({ paper, onClose }: AddToProjectModalP
   const selectedProject = projects.find(p => p.id === selectedProjectId);
   const selectedTopic = topics.find(t => t.id === selectedTopicId);
 
+  let submitLabel: React.ReactNode = 'Add to Project';
+  if (success) submitLabel = <><Check size={16} /> Added!</>;
+  else if (isSubmitting) submitLabel = <><Loader2 size={16} className="animate-spin" /> Adding…</>;
+
   if (!paper) return null;
 
   return (
@@ -142,13 +146,15 @@ export default function AddToProjectModal({ paper, onClose }: AddToProjectModalP
         <div className="px-6 py-5 space-y-4">
           {/* Project picker */}
           <div>
-            <label className="block text-xs font-medium text-zinc-400 mb-1.5">Select Project</label>
+            <label htmlFor="project-select" className="block text-xs font-medium text-zinc-400 mb-1.5">Select Project</label>
             <div
+              role="group"
               className="relative"
               tabIndex={-1}
               onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setIsProjectOpen(false); }}
             >
               <button
+                id="project-select"
                 type="button"
                 onClick={() => setIsProjectOpen(v => !v)}
                 className="w-full min-h-[42px] bg-surface_container_high border border-[#161f33] rounded-xl pl-4 pr-9 py-2 text-sm flex items-center justify-between gap-2 transition-colors focus:outline-none focus:border-zinc-500 cursor-pointer"
@@ -184,22 +190,24 @@ export default function AddToProjectModal({ paper, onClose }: AddToProjectModalP
           {/* Topic picker — only shown when project is selected and has topics */}
           {selectedProjectId && (
             <div>
-              <label className="block text-xs font-medium text-zinc-400 mb-1.5 flex items-center gap-1">
+              <label htmlFor="topic-select" className="block text-xs font-medium text-zinc-400 mb-1.5 flex items-center gap-1">
                 <Tag size={11} /> Add to Topic <span className="text-zinc-600">(optional)</span>
               </label>
               <div
+                role="group"
                 className="relative"
                 tabIndex={-1}
                 onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setIsTopicOpen(false); }}
               >
                 <button
+                  id="topic-select"
                   type="button"
                   onClick={() => setIsTopicOpen(v => !v)}
                   disabled={isLoadingTopics || topics.length === 0}
                   className="w-full min-h-[42px] bg-surface_container_high border border-[#161f33] rounded-xl pl-4 pr-9 py-2 text-sm flex items-center justify-between gap-2 transition-colors focus:outline-none focus:border-zinc-500 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <span className={selectedTopic ? 'text-white' : 'text-zinc-500'}>
-                    {isLoadingTopics ? 'Loading topics…' : topics.length === 0 ? 'No topics in this project' : selectedTopic?.name ?? 'None (add to project only)'}
+                    {isLoadingTopics ? 'Loading topics…' : topics.length === 0 ? 'No topics in this project' : (selectedTopic?.name ?? 'None (add to project only)')}
                   </span>
                   {isLoadingTopics ? <Loader2 size={14} className="animate-spin text-zinc-500 flex-shrink-0" /> : <ChevronDown size={14} className="text-zinc-500 flex-shrink-0" />}
                 </button>
@@ -209,7 +217,7 @@ export default function AddToProjectModal({ paper, onClose }: AddToProjectModalP
                       type="button"
                       onMouseDown={(e) => e.preventDefault()}
                       onClick={() => { setSelectedTopicId(''); setIsTopicOpen(false); }}
-                      className={`w-full px-4 py-2.5 text-left text-sm hover:bg-surface_container transition-colors ${!selectedTopicId ? 'bg-surface_container text-white' : 'text-zinc-400'}`}
+                      className={`w-full px-4 py-2.5 text-left text-sm hover:bg-surface_container transition-colors ${selectedTopicId ? 'text-zinc-400' : 'bg-surface_container text-white'}`}
                     >
                       None (add to project only)
                     </button>
@@ -249,11 +257,7 @@ export default function AddToProjectModal({ paper, onClose }: AddToProjectModalP
             disabled={!selectedProjectId || isSubmitting || success}
             className="flex-1 py-2.5 rounded-xl bg-primary-gradient text-white text-sm font-medium shadow-[0_4px_20px_-4px_rgba(167,165,255,0.3)] hover:shadow-[0_4px_24px_-4px_rgba(167,165,255,0.5)] transition-all flex items-center justify-center gap-2 disabled:opacity-50"
           >
-            {success ? (
-              <><Check size={16} /> Added!</>
-            ) : isSubmitting ? (
-              <><Loader2 size={16} className="animate-spin" /> Adding…</>
-            ) : 'Add to Project'}
+            {submitLabel}
           </button>
         </div>
       </div>

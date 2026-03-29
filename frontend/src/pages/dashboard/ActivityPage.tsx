@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@clerk/react';
 import { Activity, Loader2, Folder, FileText, MessageSquare, PlusCircle, CheckCircle, XCircle, Hash } from 'lucide-react';
 
@@ -113,6 +113,84 @@ export default function ActivityPage() {
     return rtf.format(-diffDays, 'day');
   };
 
+  let activityContent: React.ReactNode;
+  if (isLoading && page === 1) {
+    activityContent = (
+      <div className="flex-1 flex items-center justify-center">
+        <Loader2 className="animate-spin text-primary" size={32} />
+      </div>
+    );
+  } else if (error) {
+    activityContent = (
+      <div className="p-4 bg-red-500/10 text-red-500 border border-red-500/20 rounded-xl text-sm flex justify-center">
+        {error}
+      </div>
+    );
+  } else if (activities.length === 0) {
+    activityContent = (
+      <div className="flex-1 flex flex-col items-center justify-center text-center p-8 border-2 border-dashed border-[#161f33] rounded-2xl bg-surface_container/50">
+        <Activity className="text-zinc-600 mb-4" size={48} />
+        <h3 className="text-lg font-medium text-white mb-2">No recent activity</h3>
+        <p className="text-zinc-400 text-sm max-w-sm">
+          {filterType === 'all'
+            ? 'As you create projects, upload documents, and accept papers, your activity will appear here.'
+            : 'No activity found for this filter.'}
+        </p>
+      </div>
+    );
+  } else {
+    activityContent = (
+      <div className="relative border-l border-[#161f33] ml-4 md:ml-6 pb-12">
+        {activities.map((item, idx) => {
+          const ui = ACTIVITY_MAP[item.type] || { icon: Activity, color: 'text-zinc-400', bg: 'bg-zinc-800 border-zinc-700', label: 'System Action' };
+          const IconGroup = ui.icon;
+
+          return (
+            <div key={item.id + idx} className="mb-8 pl-8 relative group">
+              <div className={`absolute -left-4 top-1 w-8 h-8 rounded-full border ${ui.bg} flex items-center justify-center bg-surface ring-4 ring-surface shadow-sm`}>
+                <IconGroup size={14} className={ui.color} />
+              </div>
+
+              <div className="bg-surface_container border border-[#161f33] p-5 rounded-2xl group-hover:bg-surface_container_low group-hover:border-[#212c43] transition-all shadow-sm">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 md:gap-4 mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${ui.bg} ${ui.color}`}>
+                      {ui.label}
+                    </span>
+                    <span className="text-zinc-500 text-xs">
+                      {getTimeAgo(item.timestamp)}
+                    </span>
+                  </div>
+                </div>
+
+                <h3 className="text-base text-white font-medium mb-3 leading-snug">
+                  {item.description}
+                </h3>
+
+                <div className="flex items-center gap-2 mt-auto">
+                  <Folder size={14} className="text-zinc-500" />
+                  <span className="text-sm font-medium text-zinc-400">{item.project_name}</span>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+
+        {total > activities.length && (
+          <div className="pl-8 pt-4">
+            <button
+              onClick={() => setPage(p => p + 1)}
+              disabled={isLoading}
+              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-surface_container border border-[#161f33] hover:bg-surface_container_low text-white rounded-xl text-sm font-medium transition-all shadow-sm disabled:opacity-50"
+            >
+              {isLoading ? <Loader2 size={16} className="animate-spin" /> : "Load older activity"}
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-full font-sans max-w-4xl mx-auto w-full">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 flex-shrink-0">
@@ -127,6 +205,7 @@ export default function ActivityPage() {
         </div>
         
         <div
+          role="group"
           className="relative"
           tabIndex={-1}
           onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setIsFilterOpen(false); }}
@@ -159,76 +238,7 @@ export default function ActivityPage() {
         </div>
       </div>
 
-      {isLoading && page === 1 ? (
-        <div className="flex-1 flex items-center justify-center">
-          <Loader2 className="animate-spin text-primary" size={32} />
-        </div>
-      ) : error ? (
-        <div className="p-4 bg-red-500/10 text-red-500 border border-red-500/20 rounded-xl text-sm flex justify-center">
-          {error}
-        </div>
-      ) : activities.length === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center text-center p-8 border-2 border-dashed border-[#161f33] rounded-2xl bg-surface_container/50">
-          <Activity className="text-zinc-600 mb-4" size={48} />
-          <h3 className="text-lg font-medium text-white mb-2">No recent activity</h3>
-          <p className="text-zinc-400 text-sm max-w-sm">
-            {filterType !== 'all' 
-              ? 'No activity found for this filter.'
-              : 'As you create projects, upload documents, and accept papers, your activity will appear here.'}
-          </p>
-        </div>
-      ) : (
-        <div className="relative border-l border-[#161f33] ml-4 md:ml-6 pb-12">
-          {activities.map((item, idx) => {
-            const ui = ACTIVITY_MAP[item.type] || { icon: Activity, color: 'text-zinc-400', bg: 'bg-zinc-800 border-zinc-700', label: 'System Action' };
-            const IconGroup = ui.icon;
-            
-            return (
-              <div key={item.id + idx} className="mb-8 pl-8 relative group">
-                {/* Timeline Node */}
-                <div className={`absolute -left-4 top-1 w-8 h-8 rounded-full border ${ui.bg} flex items-center justify-center bg-surface ring-4 ring-surface shadow-sm`}>
-                  <IconGroup size={14} className={ui.color} />
-                </div>
-                
-                {/* Content Card */}
-                <div className="bg-surface_container border border-[#161f33] p-5 rounded-2xl group-hover:bg-surface_container_low group-hover:border-[#212c43] transition-all shadow-sm">
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 md:gap-4 mb-2">
-                    <div className="flex items-center gap-2">
-                      <span className={`text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${ui.bg} ${ui.color}`}>
-                        {ui.label}
-                      </span>
-                      <span className="text-zinc-500 text-xs">
-                        {getTimeAgo(item.timestamp)}
-                      </span>
-                    </div>
-                  </div>
-                  
-                  <h3 className="text-base text-white font-medium mb-3 leading-snug">
-                    {item.description}
-                  </h3>
-                  
-                  <div className="flex items-center gap-2 mt-auto">
-                    <Folder size={14} className="text-zinc-500" />
-                    <span className="text-sm font-medium text-zinc-400">{item.project_name}</span>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-          
-          {total > activities.length && (
-            <div className="pl-8 pt-4">
-              <button
-                onClick={() => setPage(p => p + 1)}
-                disabled={isLoading}
-                className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-surface_container border border-[#161f33] hover:bg-surface_container_low text-white rounded-xl text-sm font-medium transition-all shadow-sm disabled:opacity-50"
-              >
-                {isLoading ? <Loader2 size={16} className="animate-spin" /> : "Load older activity"}
-              </button>
-            </div>
-          )}
-        </div>
-      )}
+      {activityContent}
     </div>
   );
 }

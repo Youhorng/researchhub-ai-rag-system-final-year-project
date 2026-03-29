@@ -62,6 +62,81 @@ def is_relevant_category(categories: list[str]) -> bool:
     catchup=False,
     tags=["arxiv", "daily"],
 )
+def _fetch_new_arxiv_papers(db_conn) -> tuple[list, list]:
+    """Fetch new relevant papers from ArXiv, skipping duplicates. Returns (papers_data, texts)."""
+    category_query = " OR ".join(f"cat:{c}" for c in TARGET_CATEGORIES)
+    search = arxiv.Search(
+        query=category_query,
+        max_results=100,
+        sort_by=arxiv.SortCriterion.SubmittedDate,
+        sort_order=arxiv.SortOrder.Descending,
+    )
+    client = arxiv.Client(page_size=100, delay_seconds=3.0, num_retries=3)
+
+    papers_data = []
+    texts_to_embed = []
+    check_sql = text("SELECT id FROM papers WHERE arxiv_id = :arxiv_id")
+
+    for result in client.results(search):
+        categories = result.categories
+        if not is_relevant_category(categories):
+            continue
+        arxiv_id = result.get_short_id()
+        if db_conn.execute(check_sql, {"arxiv_id": arxiv_id}).fetchone():
+            continue
+        title = result.title.replace("\n", " ").strip()
+        abstract = result.summary.replace("\n", " ").strip()
+        papers_data.append({
+            "arxiv_id": arxiv_id,
+            "title": title,
+            "abstract": abstract,
+            "authors": [a.name for a in result.authors],
+            "categories": categories,
+            "published_at": result.published.date(),
+            "pdf_url": result.pdf_url,
+        })
+        texts_to_embed.append(f"{title}. {abstract}")
+
+    return papers_data, texts_to_embed
+
+
+def _save_and_bulk_index(db_conn, os_client, papers_data: list, embeddings: list) -> None:
+    """Insert papers into Postgres and bulk-index into OpenSearch."""
+    os_bulk_data = ""
+    insert_sql = text(
+        "INSERT INTO papers (id, arxiv_id, title, authors, abstract, categories, published_at, "
+        "pdf_url, metadata_indexed, metadata_indexed_at, chunks_indexed) "
+        "VALUES (:id, :arxiv_id, :title, :authors, :abstract, :categories, :published_at, "
+        ":pdf_url, true, :indexed_at, false)"
+    )
+    with db_conn.begin():
+        for data, vector in zip(papers_data, embeddings):
+            db_conn.execute(insert_sql, {
+                "id": str(uuid.uuid4()),
+                "arxiv_id": data["arxiv_id"],
+                "title": data["title"],
+                "authors": list(data["authors"]),
+                "abstract": data["abstract"],
+                "categories": list(data["categories"]),
+                "published_at": data["published_at"],
+                "pdf_url": data["pdf_url"],
+                "indexed_at": datetime.now(timezone.utc),
+            })
+            action = {"index": {"_index": OPENSEARCH_INDEX_NAME, "_id": data["arxiv_id"]}}
+            document = {
+                "arxiv_id": data["arxiv_id"],
+                "title": data["title"],
+                "abstract": data["abstract"],
+                "categories": data["categories"],
+                "published_at": data["published_at"].isoformat() if data["published_at"] else None,
+                "abstract_vector": vector,
+            }
+            os_bulk_data += json.dumps(action) + "\n" + json.dumps(document) + "\n"
+
+    if os_bulk_data:
+        os_client.bulk(body=os_bulk_data)
+
+
 def arxiv_daily_update_dag():
 
     @task
@@ -72,114 +147,21 @@ def arxiv_daily_update_dag():
 
         try:
             with engine.connect() as db_conn:
-                # Query arXiv for papers added/updated in target CS/ML categories.
-                # Sort by submission date, descending. Grab the 100 most recent
-                # each day for this MVP to avoid rate limits.
-                category_query = " OR ".join(f"cat:{c}" for c in TARGET_CATEGORIES)
-                search = arxiv.Search(
-                    query=category_query,
-                    max_results=100,
-                    sort_by=arxiv.SortCriterion.SubmittedDate,
-                    sort_order=arxiv.SortOrder.Descending
-                )
-
-                client = arxiv.Client(
-                    page_size=100,
-                    delay_seconds=3.0,
-                    num_retries=3
-                )
-
-                papers_data = []
-                texts_to_embed = []
-
-                # 1. Fetch from ArXiv API
-                for result in client.results(search):
-                    arxiv_id = result.get_short_id()
-                    title = result.title.replace("\n", " ").strip()
-                    abstract = result.summary.replace("\n", " ").strip()
-                    authors = [author.name for author in result.authors]
-                    categories = result.categories
-
-                    # Double check relevance
-                    if not is_relevant_category(categories):
-                        continue
-
-                    # Skip if we already have it in the DB (deduplication)
-                    check_sql = text("SELECT id FROM papers WHERE arxiv_id = :arxiv_id")
-                    existing = db_conn.execute(check_sql, {"arxiv_id": arxiv_id}).fetchone()
-                    if existing:
-                        continue
-
-                    papers_data.append({
-                        "arxiv_id": arxiv_id,
-                        "title": title,
-                        "abstract": abstract,
-                        "authors": authors,
-                        "categories": categories,
-                        "published_at": result.published.date(),
-                        "pdf_url": result.pdf_url
-                    })
-
-                    texts_to_embed.append(f"{title}. {abstract}")
+                papers_data, texts_to_embed = _fetch_new_arxiv_papers(db_conn)
 
                 if not papers_data:
                     logger.info("No new relevant papers found today.")
                     return
 
-                logger.info(f"Found {len(papers_data)} new papers. Processing embeddings...")
-
-                # 2. Get embeddings
+                logger.info("Found %d new papers. Processing embeddings...", len(papers_data))
                 embeddings = get_embeddings(texts_to_embed)
-                os_bulk_data = ""
-
-                # 3. Save to Postgres + prepare OpenSearch bulk data
-                with db_conn.begin():
-                    for data, vector in zip(papers_data, embeddings):
-                        insert_sql = text('''
-                            INSERT INTO papers (id, arxiv_id, title, authors, abstract, categories, published_at, pdf_url, metadata_indexed, metadata_indexed_at, chunks_indexed)
-                            VALUES (:id, :arxiv_id, :title, :authors, :abstract, :categories, :published_at, :pdf_url, true, :indexed_at, false)
-                        ''')
-                        db_conn.execute(insert_sql, {
-                            "id": str(uuid.uuid4()),
-                            "arxiv_id": data["arxiv_id"],
-                            "title": data["title"],
-                            "authors": list(data["authors"]),
-                            "abstract": data["abstract"],
-                            "categories": list(data["categories"]),
-                            "published_at": data["published_at"],
-                            "pdf_url": data["pdf_url"],
-                            "indexed_at": datetime.now(timezone.utc)
-                        })
-
-                        # 4. Prepare OpenSearch bulk data
-                        action = {
-                            "index": {
-                                "_index": OPENSEARCH_INDEX_NAME,
-                                "_id": data["arxiv_id"]
-                            }
-                        }
-                        document = {
-                            "arxiv_id": data["arxiv_id"],
-                            "title": data["title"],
-                            "abstract": data["abstract"],
-                            "categories": data["categories"],
-                            "published_at": data["published_at"].isoformat() if data["published_at"] else None,
-                            "abstract_vector": vector
-                        }
-                        os_bulk_data += json.dumps(action) + "\n" + json.dumps(document) + "\n"
-
-                # 5. Push to OpenSearch
-                if os_bulk_data:
-                    os_client.bulk(body=os_bulk_data)
-
-                logger.info(f"Successfully processed {len(papers_data)} new papers.")
+                _save_and_bulk_index(db_conn, os_client, papers_data, embeddings)
+                logger.info("Successfully processed %d new papers.", len(papers_data))
 
         except Exception as e:
-            logger.error(f"Error in daily update: {e}")
+            logger.error("Error in daily update: %s", e)
             raise
 
-
-    # Instantiate the DAG
-    update_task = fetch_and_index_new_papers()
+    fetch_and_index_new_papers()
 
 arxiv_daily_update_dag()

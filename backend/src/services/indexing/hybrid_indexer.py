@@ -65,7 +65,7 @@ def index_paper_chunks(paper_id: uuid.UUID, project_id: uuid.UUID) -> None:
 
             for j, (text, vec) in enumerate(zip(batch, vectors)):
                 # Skip zero vectors (embedding failures) — cosinesimil rejects them
-                if all(v == 0.0 for v in vec):
+                if not any(vec):
                     logger.warning(
                         "Skipping zero vector for chunk %d of paper %s", i + j, paper.arxiv_id
                     )

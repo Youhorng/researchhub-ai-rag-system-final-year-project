@@ -64,7 +64,7 @@ def index_document_chunks(document_id: uuid.UUID, project_id: uuid.UUID) -> None
             vectors = get_embeddings(batch)
 
             for j, (chunk_text_str, vec) in enumerate(zip(batch, vectors)):
-                if all(v == 0.0 for v in vec):
+                if not any(vec):
                     logger.warning(
                         "Skipping zero vector for chunk %d of document %s", i + j, document_id
                     )

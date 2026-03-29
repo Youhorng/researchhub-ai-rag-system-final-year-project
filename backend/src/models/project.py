@@ -6,6 +6,8 @@ from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.models.base import Base, TimestampMixin
 
+CASCADE_ALL = "all, delete-orphan"
+
 
 # The core entity of ResearchHub — a "research silo" that groups papers,
 # documents, and chat sessions around a specific research topic.
@@ -67,29 +69,29 @@ class Project(Base, TimestampMixin):
     owner: Mapped["User"] = relationship(back_populates="projects")
 
     # 1-to-many: a project has many topics (Living Knowledge Base).
-    # cascade="all, delete-orphan" deleting a project deletes all its topics.
+    # cascade=CASCADE_ALL deleting a project deletes all its topics.
     topics: Mapped[list["ProjectTopic"]] = relationship(
-        back_populates="project", cascade="all, delete-orphan"
+        back_populates="project", cascade=CASCADE_ALL
     )
 
     # 1-to-many: junction rows linking papers to this project.
     papers: Mapped[list["ProjectPaper"]] = relationship(
-        back_populates="project", cascade="all, delete-orphan"
+        back_populates="project", cascade=CASCADE_ALL
     )
 
     # 1-to-many: uploaded PDF documents scoped to this project.
     documents: Mapped[list["Document"]] = relationship(
-        back_populates="project", cascade="all, delete-orphan"
+        back_populates="project", cascade=CASCADE_ALL
     )
 
     # 1-to-many: chat sessions opened within this project.
     chat_sessions: Mapped[list["ChatSession"]] = relationship(
-        back_populates="project", cascade="all, delete-orphan"
+        back_populates="project", cascade=CASCADE_ALL
     )
 
     # 1-to-many: audit trail of all sync events for this project.
     sync_events: Mapped[list["SyncEvent"]] = relationship(
-        back_populates="project", cascade="all, delete-orphan"
+        back_populates="project", cascade=CASCADE_ALL
     )
 
 

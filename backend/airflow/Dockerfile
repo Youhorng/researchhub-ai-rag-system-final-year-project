@@ -8,7 +8,7 @@ ENV CONSTRAINT_URL="https://raw.githubusercontent.com/apache/airflow/constraints
 # Ensure pip-installed binaries (airflow, uvicorn, etc.) are on PATH for all users
 ENV PATH="/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin"
 
-# Install system dependencies
+# Install system dependencies, create airflow user, and set up directories
 # poppler-utils + tesseract-ocr needed for PDF parsing (used by ResearchHub)
 # procps provides pkill/pgrep for entrypoint cleanup of stale PID files
 RUN apt-get update && \
@@ -20,17 +20,9 @@ RUN apt-get update && \
         poppler-utils \
         procps \
         tesseract-ocr \
-        && rm -rf /var/lib/apt/lists/*
-
-# Create airflow user with UID/GID 50000 for cross-platform compatibility
-# This prevents volume permission issues on Linux hosts
-RUN groupadd -r -g 50000 airflow && useradd -r -u 50000 -g airflow -d ${AIRFLOW_HOME} -s /bin/bash airflow
-
-# Create airflow directories with proper ownership
-RUN mkdir -p ${AIRFLOW_HOME} && \
-    mkdir -p ${AIRFLOW_HOME}/dags && \
-    mkdir -p ${AIRFLOW_HOME}/logs && \
-    mkdir -p ${AIRFLOW_HOME}/plugins && \
+        && rm -rf /var/lib/apt/lists/* && \
+    groupadd -r -g 50000 airflow && useradd -r -u 50000 -g airflow -d ${AIRFLOW_HOME} -s /bin/bash airflow && \
+    mkdir -p ${AIRFLOW_HOME} ${AIRFLOW_HOME}/dags ${AIRFLOW_HOME}/logs ${AIRFLOW_HOME}/plugins && \
     chown -R 50000:50000 ${AIRFLOW_HOME} && \
     chmod -R 755 ${AIRFLOW_HOME}
 
@@ -41,13 +33,11 @@ RUN pip install --no-cache-dir \
     --constraint "${CONSTRAINT_URL}" \
     psycopg2-binary
 
-# Copy requirements and install project dependencies
+# Copy requirements, install project dependencies, and verify airflow is on PATH
 # requirements.txt mirrors backend/pyproject.toml so DAGs can import backend code
 COPY requirements.txt /tmp/requirements-airflow.txt
-RUN pip install --no-cache-dir -r /tmp/requirements-airflow.txt
-
-# Verify airflow is installed and on PATH (fails build if not found)
-RUN which airflow && airflow version
+RUN pip install --no-cache-dir -r /tmp/requirements-airflow.txt && \
+    which airflow && airflow version
 
 # Copy and set up entrypoint script
 COPY entrypoint.sh /entrypoint.sh

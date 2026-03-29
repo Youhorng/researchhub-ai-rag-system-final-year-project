@@ -13,6 +13,11 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = '9caf057f3ef7'
+
+# Repeated SQL/FK literals extracted as constants
+_NOW = "now()"
+_USERS_ID = "users.id"
+_PROJECTS_ID = "projects.id"
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -34,8 +39,8 @@ def upgrade() -> None:
     sa.Column('chunks_indexed', sa.Boolean(), nullable=False),
     sa.Column('metadata_indexed_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('chunks_indexed_at', sa.DateTime(timezone=True), nullable=True),
-    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text(_NOW), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text(_NOW), nullable=False),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_papers_arxiv_id'), 'papers', ['arxiv_id'], unique=True)
@@ -45,8 +50,8 @@ def upgrade() -> None:
     sa.Column('email', sa.String(length=255), nullable=False),
     sa.Column('display_name', sa.String(length=255), nullable=True),
     sa.Column('avatar_url', sa.String(length=512), nullable=True),
-    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text(_NOW), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text(_NOW), nullable=False),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_users_clerk_id'), 'users', ['clerk_id'], unique=True)
@@ -65,9 +70,9 @@ def upgrade() -> None:
     sa.Column('paper_count', sa.Integer(), nullable=False),
     sa.Column('document_count', sa.Integer(), nullable=False),
     sa.Column('last_synced_at', sa.DateTime(timezone=True), nullable=True),
-    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.ForeignKeyConstraint(['owner_id'], ['users.id'], ),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text(_NOW), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text(_NOW), nullable=False),
+    sa.ForeignKeyConstraint(['owner_id'], [_USERS_ID], ),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_projects_owner_id'), 'projects', ['owner_id'], unique=False)
@@ -77,8 +82,8 @@ def upgrade() -> None:
     sa.Column('theme', sa.String(length=50), nullable=False),
     sa.Column('default_llm_model', sa.String(length=100), nullable=True),
     sa.Column('email_notifications', sa.Boolean(), nullable=False),
-    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text(_NOW), nullable=False),
+    sa.ForeignKeyConstraint(['user_id'], [_USERS_ID], ),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('user_id')
     )
@@ -87,10 +92,10 @@ def upgrade() -> None:
     sa.Column('project_id', sa.Uuid(), nullable=False),
     sa.Column('user_id', sa.Uuid(), nullable=False),
     sa.Column('title', sa.String(length=255), nullable=True),
-    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ),
-    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text(_NOW), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text(_NOW), nullable=False),
+    sa.ForeignKeyConstraint(['project_id'], [_PROJECTS_ID], ),
+    sa.ForeignKeyConstraint(['user_id'], [_USERS_ID], ),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_chat_sessions_project_id'), 'chat_sessions', ['project_id'], unique=False)
@@ -106,8 +111,8 @@ def upgrade() -> None:
     sa.Column('mime_type', sa.String(length=100), nullable=True),
     sa.Column('chunks_indexed', sa.Boolean(), nullable=False),
     sa.Column('chunks_indexed_at', sa.DateTime(timezone=True), nullable=True),
-    sa.Column('uploaded_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ),
+    sa.Column('uploaded_at', sa.DateTime(timezone=True), server_default=sa.text(_NOW), nullable=False),
+    sa.ForeignKeyConstraint(['project_id'], [_PROJECTS_ID], ),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_documents_project_id'), 'documents', ['project_id'], unique=False)
@@ -121,9 +126,9 @@ def upgrade() -> None:
     sa.Column('year_to', sa.Integer(), nullable=True),
     sa.Column('last_query', sa.Text(), nullable=True),
     sa.Column('status', sa.String(length=50), nullable=False),
-    sa.Column('added_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('added_at', sa.DateTime(timezone=True), server_default=sa.text(_NOW), nullable=False),
     sa.Column('pruned_at', sa.DateTime(timezone=True), nullable=True),
-    sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ),
+    sa.ForeignKeyConstraint(['project_id'], [_PROJECTS_ID], ),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_project_topics_project_id'), 'project_topics', ['project_id'], unique=False)
@@ -134,7 +139,7 @@ def upgrade() -> None:
     sa.Column('content', sa.Text(), nullable=False),
     sa.Column('cited_sources', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
     sa.Column('metadata', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
-    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text(_NOW), nullable=False),
     sa.ForeignKeyConstraint(['session_id'], ['chat_sessions.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
@@ -148,9 +153,9 @@ def upgrade() -> None:
     sa.Column('relevance_score', sa.Float(), nullable=True),
     sa.Column('added_by', sa.String(length=50), nullable=True),
     sa.Column('status_updated_at', sa.DateTime(timezone=True), nullable=True),
-    sa.Column('added_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('added_at', sa.DateTime(timezone=True), server_default=sa.text(_NOW), nullable=False),
     sa.ForeignKeyConstraint(['paper_id'], ['papers.id'], ),
-    sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ),
+    sa.ForeignKeyConstraint(['project_id'], [_PROJECTS_ID], ),
     sa.ForeignKeyConstraint(['topic_id'], ['project_topics.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
@@ -165,8 +170,8 @@ def upgrade() -> None:
     sa.Column('papers_removed', sa.Integer(), nullable=False),
     sa.Column('details', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
     sa.Column('triggered_by', sa.String(length=50), nullable=True),
-    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text(_NOW), nullable=False),
+    sa.ForeignKeyConstraint(['project_id'], [_PROJECTS_ID], ),
     sa.ForeignKeyConstraint(['topic_id'], ['project_topics.id'], ),
     sa.PrimaryKeyConstraint('id')
     )

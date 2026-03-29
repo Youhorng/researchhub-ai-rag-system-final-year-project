@@ -11,7 +11,7 @@ if (!CLERK_KEY) {
   throw new Error('Missing VITE_CLERK_PUBLISHABLE_KEY in .env')
 }
 
-function ClerkProviderWithRoutes({ children }: { children: React.ReactNode }) {
+function ClerkProviderWithRoutes({ children }: { readonly children: React.ReactNode }) {
   const navigate = useNavigate();
   return (
     <ClerkProvider 

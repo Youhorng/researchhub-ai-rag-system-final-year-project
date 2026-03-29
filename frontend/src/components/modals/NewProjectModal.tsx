@@ -22,8 +22,8 @@ const ARXIV_CATEGORIES_MAP: Record<string, string> = {
 };
 
 interface NewProjectModalProps {
-  isOpen: boolean;
-  onClose: () => void;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
 }
 
 export default function NewProjectModal({ isOpen, onClose }: NewProjectModalProps) {
@@ -120,8 +120,7 @@ export default function NewProjectModal({ isOpen, onClose }: NewProjectModalProp
     const token = await getToken();
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
     const successfulUploads: any[] = [];
-    for (let i = 0; i < files.length; i++) {
-       const file = files[i];
+    for (const file of Array.from(files)) {
        const formData = new FormData();
        formData.append('file', file);
        try {
@@ -264,8 +263,8 @@ export default function NewProjectModal({ isOpen, onClose }: NewProjectModalProp
         research_goal: researchGoal || null,
         initial_keywords: selectedKeywords.size > 0 ? Array.from(selectedKeywords) : null,
         arxiv_categories: selectedCategories.size > 0 ? Array.from(selectedCategories) : null,
-        year_from: yearFrom ? parseInt(yearFrom) : null,
-        year_to: yearTo ? parseInt(yearTo) : null
+        year_from: yearFrom ? Number.parseInt(yearFrom) : null,
+        year_to: yearTo ? Number.parseInt(yearTo) : null
       };
 
       const res = await fetch(`${apiUrl}/projects`, {
@@ -291,9 +290,8 @@ export default function NewProjectModal({ isOpen, onClose }: NewProjectModalProp
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
-      <div 
+      <div
         className="w-full max-w-2xl bg-surface_container border border-[#161f33] rounded-2xl shadow-2xl my-8 mx-auto flex flex-col max-h-[90vh]"
-        onClick={(e) => e.stopPropagation()}
       >
         <div className="relative flex items-center justify-center p-5 border-b border-[#161f33] flex-shrink-0">
           <h2 className="text-xl font-bold text-white">
@@ -309,8 +307,9 @@ export default function NewProjectModal({ isOpen, onClose }: NewProjectModalProp
             {error && <div className="p-3 bg-red-500/10 text-red-400 border border-red-500/20 rounded-lg text-sm">{error}</div>}
 
           <div>
-            <label className="block text-sm font-medium text-zinc-100 mb-1.5">Project Name *</label>
-            <input 
+            <label htmlFor="project-name-input" className="block text-sm font-medium text-zinc-100 mb-1.5">Project Name *</label>
+            <input
+              id="project-name-input"
               required
               type="text"
               value={name}
@@ -321,8 +320,9 @@ export default function NewProjectModal({ isOpen, onClose }: NewProjectModalProp
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-zinc-100 mb-1.5">Description</label>
-            <textarea 
+            <label htmlFor="project-description" className="block text-sm font-medium text-zinc-100 mb-1.5">Description</label>
+            <textarea
+              id="project-description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={2}
@@ -333,8 +333,9 @@ export default function NewProjectModal({ isOpen, onClose }: NewProjectModalProp
 
           <div className="p-4 bg-surface_container_low border border-[#161f33] rounded-xl space-y-4">
             <div>
-               <label className="block text-sm font-medium text-zinc-100 mb-1.5">Research Goal</label>
-               <textarea 
+               <label htmlFor="project-research-goal" className="block text-sm font-medium text-zinc-100 mb-1.5">Research Goal</label>
+               <textarea
+                 id="project-research-goal"
                  value={researchGoal}
                  onChange={(e) => setResearchGoal(e.target.value)}
                  rows={2}
@@ -386,10 +387,9 @@ export default function NewProjectModal({ isOpen, onClose }: NewProjectModalProp
                 }
               }}
             >
-              <label className="block text-sm font-medium text-zinc-100 mb-1.5">arXiv Categories</label>
-              <div 
+              <label htmlFor="project-category-search" className="block text-sm font-medium text-zinc-100 mb-1.5">arXiv Categories</label>
+              <div
                 className="w-full min-h-[44px] bg-surface_container_high border border-[#161f33] rounded-xl px-2 py-1.5 flex flex-wrap gap-1.5 items-center cursor-text transition-colors focus-within:border-zinc-500 focus-within:ring-1 focus-within:ring-zinc-500"
-                onClick={() => setIsCategoryDropdownOpen(true)}
               >
                 {Array.from(selectedCategories).map(catId => (
                   <span key={catId} className="bg-surface_container border border-zinc-700 text-white text-xs px-2 py-1 rounded-md flex items-center gap-1.5">
@@ -407,6 +407,7 @@ export default function NewProjectModal({ isOpen, onClose }: NewProjectModalProp
                     if (!isCategoryDropdownOpen) setIsCategoryDropdownOpen(true);
                   }}
                   onFocus={() => setIsCategoryDropdownOpen(true)}
+                  id="project-category-search"
                   className="flex-1 bg-transparent border-none text-white placeholder-zinc-400 focus:outline-none focus:ring-0 text-sm min-w-[120px] px-2 py-1"
                   placeholder={selectedCategories.size === 0 ? "Search categories..." : ""}
                 />
@@ -435,27 +436,29 @@ export default function NewProjectModal({ isOpen, onClose }: NewProjectModalProp
             </div>
             <div className="grid grid-cols-2 gap-4">
                <div>
-                  <label className="block text-sm font-medium text-zinc-100 mb-1.5">Year From</label>
-                  <input 
+                  <label htmlFor="project-year-from" className="block text-sm font-medium text-zinc-100 mb-1.5">Year From</label>
+                  <input
+                    id="project-year-from"
                     type="text"
                     inputMode="numeric"
                     pattern="[0-9]*"
                     maxLength={4}
                     value={yearFrom}
-                    onChange={(e) => setYearFrom(e.target.value.replace(/[^0-9]/g, ''))}
+                    onChange={(e) => setYearFrom(e.target.value.replaceAll(/\D/g, ''))}
                     className="w-full bg-surface_container_high border border-[#161f33] rounded-xl px-4 py-2.5 text-white placeholder-zinc-400 focus:outline-none focus:border-zinc-500 focus:ring-1 focus:ring-zinc-500 text-sm"
                     placeholder="2020"
                   />
                </div>
                <div>
-                  <label className="block text-sm font-medium text-zinc-100 mb-1.5">Year To</label>
-                  <input 
+                  <label htmlFor="project-year-to" className="block text-sm font-medium text-zinc-100 mb-1.5">Year To</label>
+                  <input
+                    id="project-year-to"
                     type="text"
                     inputMode="numeric"
                     pattern="[0-9]*"
                     maxLength={4}
                     value={yearTo}
-                    onChange={(e) => setYearTo(e.target.value.replace(/[^0-9]/g, ''))}
+                    onChange={(e) => setYearTo(e.target.value.replaceAll(/\D/g, ''))}
                     className="w-full bg-surface_container_high border border-[#161f33] rounded-xl px-4 py-2.5 text-white placeholder-zinc-400 focus:outline-none focus:border-zinc-500 focus:ring-1 focus:ring-zinc-500 text-sm"
                     placeholder="2024"
                   />
@@ -492,42 +495,50 @@ export default function NewProjectModal({ isOpen, onClose }: NewProjectModalProp
                    <Sparkles size={16} className="text-indigo-400" /> Suggested Papers
                  </h3>
                  
-                 {isSearchingPapers ? (
-                   <div className="p-8 flex flex-col items-center justify-center text-zinc-400 bg-surface_container_low rounded-xl border border-[#161f33]">
-                     <Loader2 size={24} className="animate-spin mb-2 text-indigo-400" />
-                     <p className="text-sm">Searching OpenSearch for relevant papers...</p>
-                   </div>
-                 ) : suggestedPapers.length > 0 ? (
-                   <div className="space-y-3">
-                     {suggestedPapers.map(paper => {
-                        const isAccepted = acceptedPaperIds.has(paper.id);
-                        return (
-                          <div key={paper.id} className={`p-4 rounded-xl border transition-colors ${isAccepted ? 'bg-primary/10 border-primary/30' : 'bg-surface_container_high border-[#161f33]'}`}>
-                            <div className="flex justify-between items-start gap-4">
-                              <div>
-                                <h4 className="text-sm font-bold text-white leading-snug mb-1">{paper.title}</h4>
-                                {paper.abstract && (
-                                  <p className="text-xs text-zinc-400 line-clamp-2 mt-1.5">{paper.abstract}</p>
-                                )}
-                              </div>
-                              <button 
-                                type="button"
-                                onClick={() => handleTogglePaper(paper.id)}
-                                className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-all flex items-center gap-1.5 border ${isAccepted ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/30' : 'bg-surface_container hover:bg-surface_container_highest border-zinc-700 text-zinc-300 hover:text-white'}`}
-                              >
-                                {isAccepted ? <CheckCircle2 size={14} /> : <FileUp size={14} />}
-                                {isAccepted ? 'Added' : 'Add'}
-                              </button>
-                            </div>
-                          </div>
-                        )
-                     })}
-                   </div>
-                 ) : (
-                   <div className="p-4 text-center text-zinc-500 bg-surface_container_low rounded-xl text-sm border border-[#161f33]">
-                     No suggested papers found based on your keywords.
-                   </div>
-                 )}
+                 {(() => {
+                   if (isSearchingPapers) {
+                     return (
+                       <div className="p-8 flex flex-col items-center justify-center text-zinc-400 bg-surface_container_low rounded-xl border border-[#161f33]">
+                         <Loader2 size={24} className="animate-spin mb-2 text-indigo-400" />
+                         <p className="text-sm">Searching OpenSearch for relevant papers...</p>
+                       </div>
+                     );
+                   }
+                   if (suggestedPapers.length > 0) {
+                     return (
+                       <div className="space-y-3">
+                         {suggestedPapers.map(paper => {
+                           const isAccepted = acceptedPaperIds.has(paper.id);
+                           return (
+                             <div key={paper.id} className={`p-4 rounded-xl border transition-colors ${isAccepted ? 'bg-primary/10 border-primary/30' : 'bg-surface_container_high border-[#161f33]'}`}>
+                               <div className="flex justify-between items-start gap-4">
+                                 <div>
+                                   <h4 className="text-sm font-bold text-white leading-snug mb-1">{paper.title}</h4>
+                                   {paper.abstract && (
+                                     <p className="text-xs text-zinc-400 line-clamp-2 mt-1.5">{paper.abstract}</p>
+                                   )}
+                                 </div>
+                                 <button
+                                   type="button"
+                                   onClick={() => handleTogglePaper(paper.id)}
+                                   className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-all flex items-center gap-1.5 border ${isAccepted ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/30' : 'bg-surface_container hover:bg-surface_container_highest border-zinc-700 text-zinc-300 hover:text-white'}`}
+                                 >
+                                   {isAccepted ? <CheckCircle2 size={14} /> : <FileUp size={14} />}
+                                   {isAccepted ? 'Added' : 'Add'}
+                                 </button>
+                               </div>
+                             </div>
+                           );
+                         })}
+                       </div>
+                     );
+                   }
+                   return (
+                     <div className="p-4 text-center text-zinc-500 bg-surface_container_low rounded-xl text-sm border border-[#161f33]">
+                       No suggested papers found based on your keywords.
+                     </div>
+                   );
+                 })()}
               </div>
 
               {/* Upload PDFs Section */}
@@ -563,8 +574,8 @@ export default function NewProjectModal({ isOpen, onClose }: NewProjectModalProp
                    <div className="pt-2">
                      <p className="text-xs font-medium text-zinc-400 mb-2">Uploaded Files:</p>
                      <div className="flex flex-col gap-2">
-                       {uploadedDocs.map((doc, idx) => (
-                         <div key={idx} className="flex items-center justify-between text-sm text-zinc-300 bg-surface_container_high p-3 rounded-xl border border-[#161f33] group">
+                       {uploadedDocs.map((doc) => (
+                         <div key={doc.id} className="flex items-center justify-between text-sm text-zinc-300 bg-surface_container_high p-3 rounded-xl border border-[#161f33] group">
                            <div className="flex items-center gap-3 overflow-hidden">
                              <CheckCircle2 size={16} className="text-emerald-400 flex-shrink-0" />
                              <span className="truncate max-w-full">{doc.original_filename || doc.title}</span>

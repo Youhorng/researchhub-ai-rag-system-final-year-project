@@ -1,14 +1,12 @@
 import logging
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
-from opensearchpy import OpenSearch
+from fastapi import APIRouter, HTTPException
 from src.config import get_settings
-from src.dependencies import CurrentUser, DbSession
+from src.dependencies import CurrentUser, DbSession, OsClient
 from src.models.project import Project
 from src.schemas.search import ChunkSearchHit, ChunkSearchRequest, ChunkSearchResponse
 from src.services.embeddings.openai import get_embeddings
-from src.services.opensearch.client import get_os_client
 from src.services.opensearch.query_builder import build_chunk_search_query
 
 logger = logging.getLogger(__name__)
@@ -20,13 +18,20 @@ router = APIRouter(
 )
 
 
-@router.post("", response_model=ChunkSearchResponse)
+@router.post(
+    "",
+    response_model=ChunkSearchResponse,
+    responses={
+        404: {"description": "Project not found"},
+        502: {"description": "Search service unavailable"},
+    },
+)
 async def search_chunks(
     project_id: uuid.UUID,
     body: ChunkSearchRequest,
     db: DbSession,
     current_user: CurrentUser,
-    os_client: OpenSearch = Depends(get_os_client),
+    os_client: OsClient,
 ):
     """Run hybrid BM25 + KNN search against project chunks."""
     project = db.query(Project).filter_by(id=project_id, owner_id=current_user.id).first()

@@ -29,22 +29,22 @@ class UnprocessableError(Exception):
 
 
 # Define exception handlers to convert exceptions to JSON responses
-async def not_found_handler(request: Request, exc: NotFoundError) -> JSONResponse:
+def not_found_handler(request: Request, exc: NotFoundError) -> JSONResponse:
     detail = f"{exc.resource} not found"
     if exc.identifier:
         detail = f"{exc.resource} '{exc.identifier}' not found"
     return JSONResponse(status_code=404, content={"detail": detail})
 
 
-async def forbidden_handler(request: Request, exc: ForbiddenError) -> JSONResponse:
+def forbidden_handler(request: Request, exc: ForbiddenError) -> JSONResponse:
     return JSONResponse(status_code=403, content={"detail": exc.message})
 
 
-async def conflict_handler(request: Request, exc: ConflictError) -> JSONResponse:
+def conflict_handler(request: Request, exc: ConflictError) -> JSONResponse:
     return JSONResponse(status_code=409, content={"detail": exc.message})
 
     
-async def unprocessable_handler(request: Request, exc: UnprocessableError) -> JSONResponse:
+def unprocessable_handler(request: Request, exc: UnprocessableError) -> JSONResponse:
     return JSONResponse(status_code=422, content={"detail": exc.message})
 
 

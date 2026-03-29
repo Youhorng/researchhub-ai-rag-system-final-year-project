@@ -1,12 +1,11 @@
 import logging
 import uuid
-from typing import Optional
-from fastapi import APIRouter, Depends, Query, HTTPException
+from typing import Annotated, Optional
+from fastapi import APIRouter, Query, HTTPException
 from sqlalchemy import select, literal_column, union_all, desc
 from pydantic import BaseModel
 from datetime import datetime
 
-from src.database import get_db
 from src.dependencies import CurrentUser, DbSession
 from src.models.project import Project, ProjectTopic
 from src.models.document import Document
@@ -41,14 +40,18 @@ class RecentSessionItem(BaseModel):
     title: str | None
     updated_at: datetime
 
-@router.get("", response_model=ActivityResponse)
+@router.get(
+    "",
+    response_model=ActivityResponse,
+    responses={500: {"description": "Internal server error fetching activity feed"}},
+)
 async def get_recent_activity(
     db: DbSession,
     current_user: CurrentUser,
-    project_id: Optional[uuid.UUID] = Query(None, description="Filter by a specific project"),
-    activity_type: Optional[str] = Query(None, description="Filter by activity type"),
-    page: int = Query(1, ge=1, description="Page number"),
-    limit: int = Query(20, ge=1, le=100, description="Results per page"),
+    project_id: Annotated[Optional[uuid.UUID], Query(description="Filter by a specific project")] = None,
+    activity_type: Annotated[Optional[str], Query(description="Filter by activity type")] = None,
+    page: Annotated[int, Query(ge=1, description="Page number")] = 1,
+    limit: Annotated[int, Query(ge=1, le=100, description="Results per page")] = 20,
 ):
     """Fetch unified recent activity timeline across user's projects."""
 
@@ -161,7 +164,7 @@ async def get_recent_activity(
             page=page,
             limit=limit
         )
-    except Exception as e:
+    except Exception:
         logger.exception("Failed to fetch activity feed")
         raise HTTPException(status_code=500, detail="Internal server error fetching activity feed")
 
@@ -170,7 +173,7 @@ async def get_recent_activity(
 async def get_recent_chat_sessions(
     db: DbSession,
     current_user: CurrentUser,
-    limit: int = Query(5, ge=1, le=20),
+    limit: Annotated[int, Query(ge=1, le=20)] = 5,
 ):
     """Return the most recent chat sessions across all user projects."""
     from sqlalchemy import String, cast, desc, select

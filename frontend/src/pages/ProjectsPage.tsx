@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@clerk/react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Folder, FileText, Calendar, Loader2, Database, Trash2, Archive, ArchiveRestore } from 'lucide-react';
@@ -16,7 +16,7 @@ interface Project {
 export default function ProjectsPage() {
   const { getToken } = useAuth();
   const navigate = useNavigate();
-  
+
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -32,13 +32,13 @@ export default function ProjectsPage() {
         const token = await getToken();
         // Fallback to localhost if env URL isn't set
         const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
-        
+
         const res = await fetch(`${apiUrl}/projects?include_archived=true`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
         });
-        
+
         if (!res.ok) throw new Error('Failed to fetch projects');
         const data = await res.json();
         setProjects(data);
@@ -56,16 +56,16 @@ export default function ProjectsPage() {
     try {
       const token = await getToken();
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
-      
+
       const res = await fetch(`${apiUrl}/projects/${projectId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
-      
+
       if (!res.ok) throw new Error('Failed to delete project');
-      
+
       // Update local state to remove the deleted project
       setProjects(prev => prev.filter(p => p.id !== projectId));
       setProjectToDelete(null);
@@ -107,6 +107,126 @@ export default function ProjectsPage() {
     .filter(p => p.status === statusFilter)
     .filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()));
 
+  // Main content based on loading/error/data state
+  let mainContent: React.ReactNode;
+  if (isLoading) {
+    mainContent = (
+      <div className="flex-1 flex items-center justify-center">
+        <Loader2 className="animate-spin text-primary" size={32} />
+      </div>
+    );
+  } else if (error) {
+    mainContent = (
+      <div className="p-4 bg-red-500/10 text-red-500 border border-red-500/20 rounded-xl text-sm flex justify-center">
+        {error}
+      </div>
+    );
+  } else if (filteredProjects.length === 0) {
+    const emptyIcon = statusFilter === 'archived'
+      ? <Archive className="text-zinc-600 mb-4" size={48} />
+      : <Folder className="text-zinc-600 mb-4" size={48} />;
+    let emptyMessage: string;
+    if (searchQuery) {
+      emptyMessage = `We couldn't find any projects matching "${searchQuery}".`;
+    } else if (statusFilter === 'archived') {
+      emptyMessage = 'Projects you archive will appear here. You can archive a project from its settings page.';
+    } else {
+      emptyMessage = 'Get started by creating a new research project from the sidebar.';
+    }
+    mainContent = (
+      <div className="flex-1 flex flex-col items-center justify-center text-center p-8 border-2 border-dashed border-[#161f33] rounded-2xl bg-surface_container/50">
+        {emptyIcon}
+        <h3 className="text-lg font-medium text-white mb-2">
+          {statusFilter === 'archived' ? 'No archived projects' : 'No projects found'}
+        </h3>
+        <p className="text-zinc-400 text-sm max-w-sm">{emptyMessage}</p>
+      </div>
+    );
+  } else {
+    mainContent = (
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 auto-rows-max">
+        {filteredProjects.map((project) => {
+          let archiveIcon: React.ReactNode;
+          if (isArchiving === project.id) {
+            archiveIcon = <Loader2 size={18} className="animate-spin" />;
+          } else if (project.status === 'archived') {
+            archiveIcon = <ArchiveRestore size={18} />;
+          } else {
+            archiveIcon = <Archive size={18} />;
+          }
+          return (
+            <div
+              key={project.id}
+              className="group bg-surface_container border border-[#161f33] rounded-2xl p-6 hover:border-indigo-500/50 hover:bg-surface_container_low transition-all shadow-sm hover:shadow-[0_8px_30px_-12px_rgba(99,102,241,0.3)] flex flex-col h-full"
+            >
+              <div className="flex items-start justify-between mb-4 gap-4">
+                <h3 className="text-lg font-bold text-white line-clamp-2 leading-tight group-hover:text-indigo-400 transition-colors">
+                  {project.name}
+                </h3>
+                <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider whitespace-nowrap flex-shrink-0 ${
+                  project.status === 'active'
+                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                    : 'bg-zinc-500/10 text-zinc-400 border border-zinc-500/20'
+                }`}>
+                  {project.status}
+                </span>
+              </div>
+
+              <div className="flex flex-col gap-3 mb-6 mt-auto">
+                <div className="flex flex-wrap items-center gap-2 sm:gap-4">
+                  <div className="flex items-center gap-2 text-zinc-400 bg-surface_container_high px-3 py-1.5 rounded-lg border border-[#161f33] flex-1 sm:flex-none justify-center sm:justify-start">
+                     <FileText size={14} className="text-indigo-400 flex-shrink-0" />
+                     <span className="text-xs font-semibold">{project.paper_count} <span className="font-normal text-zinc-500">Papers</span></span>
+                  </div>
+                  <div className="flex items-center gap-2 text-zinc-400 bg-surface_container_high px-3 py-1.5 rounded-lg border border-[#161f33] flex-1 sm:flex-none justify-center sm:justify-start">
+                     <Database size={14} className="text-indigo-400 flex-shrink-0" />
+                     <span className="text-xs font-semibold">{project.document_count} <span className="font-normal text-zinc-500">Docs</span></span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 text-zinc-500 pl-1 mt-1">
+                   <Calendar size={14} />
+                   <span className="text-xs font-medium">
+                     Created {new Date(project.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                   </span>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => navigate(`/dashboard/projects/${project.id}`)}
+                  className="flex-1 flex items-center justify-center gap-2 bg-surface_container_high hover:bg-surface_container_highest border border-[#161f33] text-white py-2.5 rounded-xl text-sm font-medium transition-colors group-hover:border-indigo-500/30 group-hover:text-indigo-300 group-hover:bg-indigo-500/10"
+                >
+                  Open Project
+                </button>
+                <button
+                  onClick={() => handleToggleArchive(project)}
+                  disabled={isArchiving === project.id}
+                  className={`w-12 flex-shrink-0 flex items-center justify-center bg-surface_container_high border border-[#161f33] rounded-xl transition-colors disabled:opacity-50 ${
+                    project.status === 'archived'
+                      ? 'hover:bg-emerald-500/10 hover:border-emerald-500/30 text-zinc-400 hover:text-emerald-400'
+                      : 'hover:bg-amber-500/10 hover:border-amber-500/30 text-zinc-400 hover:text-amber-400'
+                  }`}
+                  title={project.status === 'archived' ? 'Unarchive Project' : 'Archive Project'}
+                >
+                  {archiveIcon}
+                </button>
+                <button
+                  onClick={() => setProjectToDelete(project)}
+                  disabled={isDeleting === project.id}
+                  className="w-12 flex-shrink-0 flex items-center justify-center bg-surface_container_high hover:bg-red-500/10 border border-[#161f33] hover:border-red-500/30 text-zinc-400 hover:text-red-400 rounded-xl transition-colors disabled:opacity-50"
+                  title="Delete Project"
+                >
+                  {isDeleting === project.id ? <Loader2 size={18} className="animate-spin text-red-400" /> : <Trash2 size={18} />}
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-full font-sans">
       {/* Header section with Title and Search Bar aligned correctly */}
@@ -120,7 +240,7 @@ export default function ProjectsPage() {
              <p className="text-zinc-400 text-sm mt-0.5">Manage your research projects</p>
           </div>
         </div>
-        
+
         <div className="relative w-full sm:w-80">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
             <Search className="text-zinc-500" size={18} />
@@ -171,109 +291,7 @@ export default function ProjectsPage() {
         </button>
       </div>
 
-      {isLoading ? (
-        <div className="flex-1 flex items-center justify-center">
-          <Loader2 className="animate-spin text-primary" size={32} />
-        </div>
-      ) : error ? (
-        <div className="p-4 bg-red-500/10 text-red-500 border border-red-500/20 rounded-xl text-sm flex justify-center">
-          {error}
-        </div>
-      ) : filteredProjects.length === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center text-center p-8 border-2 border-dashed border-[#161f33] rounded-2xl bg-surface_container/50">
-          {statusFilter === 'archived' ? (
-            <Archive className="text-zinc-600 mb-4" size={48} />
-          ) : (
-            <Folder className="text-zinc-600 mb-4" size={48} />
-          )}
-          <h3 className="text-lg font-medium text-white mb-2">
-            {statusFilter === 'archived' ? 'No archived projects' : 'No projects found'}
-          </h3>
-          <p className="text-zinc-400 text-sm max-w-sm">
-            {searchQuery
-              ? `We couldn't find any projects matching "${searchQuery}".`
-              : statusFilter === 'archived'
-                ? 'Projects you archive will appear here. You can archive a project from its settings page.'
-                : 'Get started by creating a new research project from the sidebar.'}
-          </p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 auto-rows-max">
-          {filteredProjects.map((project) => (
-            <div 
-              key={project.id} 
-              className="group bg-surface_container border border-[#161f33] rounded-2xl p-6 hover:border-indigo-500/50 hover:bg-surface_container_low transition-all shadow-sm hover:shadow-[0_8px_30px_-12px_rgba(99,102,241,0.3)] flex flex-col h-full"
-            >
-              <div className="flex items-start justify-between mb-4 gap-4">
-                <h3 className="text-lg font-bold text-white line-clamp-2 leading-tight group-hover:text-indigo-400 transition-colors">
-                  {project.name}
-                </h3>
-                <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider whitespace-nowrap flex-shrink-0 ${
-                  project.status === 'active' 
-                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
-                    : 'bg-zinc-500/10 text-zinc-400 border border-zinc-500/20'
-                }`}>
-                  {project.status}
-                </span>
-              </div>
-              
-              <div className="flex flex-col gap-3 mb-6 mt-auto">
-                <div className="flex flex-wrap items-center gap-2 sm:gap-4">
-                  <div className="flex items-center gap-2 text-zinc-400 bg-surface_container_high px-3 py-1.5 rounded-lg border border-[#161f33] flex-1 sm:flex-none justify-center sm:justify-start">
-                     <FileText size={14} className="text-indigo-400 flex-shrink-0" />
-                     <span className="text-xs font-semibold">{project.paper_count} <span className="font-normal text-zinc-500">Papers</span></span>
-                  </div>
-                  <div className="flex items-center gap-2 text-zinc-400 bg-surface_container_high px-3 py-1.5 rounded-lg border border-[#161f33] flex-1 sm:flex-none justify-center sm:justify-start">
-                     <Database size={14} className="text-indigo-400 flex-shrink-0" />
-                     <span className="text-xs font-semibold">{project.document_count} <span className="font-normal text-zinc-500">Docs</span></span>
-                  </div>
-                </div>
-                
-                <div className="flex items-center gap-2 text-zinc-500 pl-1 mt-1">
-                   <Calendar size={14} />
-                   <span className="text-xs font-medium">
-                     Created {new Date(project.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
-                   </span>
-                </div>
-              </div>
-
-              <div className="flex gap-3">
-                <button
-                  onClick={() => navigate(`/dashboard/projects/${project.id}`)}
-                  className="flex-1 flex items-center justify-center gap-2 bg-surface_container_high hover:bg-surface_container_highest border border-[#161f33] text-white py-2.5 rounded-xl text-sm font-medium transition-colors group-hover:border-indigo-500/30 group-hover:text-indigo-300 group-hover:bg-indigo-500/10"
-                >
-                  Open Project
-                </button>
-                <button
-                  onClick={() => handleToggleArchive(project)}
-                  disabled={isArchiving === project.id}
-                  className={`w-12 flex-shrink-0 flex items-center justify-center bg-surface_container_high border border-[#161f33] rounded-xl transition-colors disabled:opacity-50 ${
-                    project.status === 'archived'
-                      ? 'hover:bg-emerald-500/10 hover:border-emerald-500/30 text-zinc-400 hover:text-emerald-400'
-                      : 'hover:bg-amber-500/10 hover:border-amber-500/30 text-zinc-400 hover:text-amber-400'
-                  }`}
-                  title={project.status === 'archived' ? 'Unarchive Project' : 'Archive Project'}
-                >
-                  {isArchiving === project.id
-                    ? <Loader2 size={18} className="animate-spin" />
-                    : project.status === 'archived'
-                      ? <ArchiveRestore size={18} />
-                      : <Archive size={18} />
-                  }
-                </button>
-                <button
-                  onClick={() => setProjectToDelete(project)}
-                  disabled={isDeleting === project.id}
-                  className="w-12 flex-shrink-0 flex items-center justify-center bg-surface_container_high hover:bg-red-500/10 border border-[#161f33] hover:border-red-500/30 text-zinc-400 hover:text-red-400 rounded-xl transition-colors disabled:opacity-50"
-                  title="Delete Project"
-                >
-                  {isDeleting === project.id ? <Loader2 size={18} className="animate-spin text-red-400" /> : <Trash2 size={18} />}
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      {mainContent}
 
       {/* Custom Confirmation Modal */}
       {projectToDelete && (
@@ -285,12 +303,12 @@ export default function ProjectsPage() {
               </div>
               <h2 className="text-xl font-bold text-white mb-2">Delete Project</h2>
               <p className="text-zinc-400 text-sm">
-                Are you sure you want to permanently delete "<span className="text-white font-medium">{projectToDelete.name}</span>"? 
+                Are you sure you want to permanently delete "<span className="text-white font-medium">{projectToDelete.name}</span>"?
                 This action cannot be undone and will permanently remove all associated papers and documents.
               </p>
             </div>
             <div className="p-4 border-t border-[#161f33] bg-surface_container_high flex justify-end gap-3">
-              <button 
+              <button
                 type="button"
                 disabled={isDeleting === projectToDelete.id}
                 onClick={() => setProjectToDelete(null)}
@@ -298,7 +316,7 @@ export default function ProjectsPage() {
               >
                 Cancel
               </button>
-              <button 
+              <button
                 type="button"
                 disabled={isDeleting === projectToDelete.id}
                 onClick={() => handleDeleteProject(projectToDelete.id)}

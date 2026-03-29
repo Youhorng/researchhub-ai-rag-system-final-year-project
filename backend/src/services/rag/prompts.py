@@ -67,6 +67,47 @@ def _compute_ngrams(text: str, n: int = 4) -> set[tuple[str, ...]]:
     return {tuple(words[i : i + n]) for i in range(len(words) - n + 1)}
 
 
+def _compute_overlap(ngrams_a: set, ngrams_b: set) -> float:
+    """Return the overlap coefficient between two n-gram sets."""
+    if not ngrams_a or not ngrams_b:
+        return 0.0
+    smaller = min(len(ngrams_a), len(ngrams_b))
+    return len(ngrams_a & ngrams_b) / smaller
+
+
+def _merge_source_metadata(src_i: dict, src_j: dict) -> None:
+    """Merge src_j's metadata into src_i if src_j has better quality metadata."""
+    title_i = src_i.get("title", "")
+    j_has_better_meta = (
+        (src_j.get("arxiv_id") and not src_i.get("arxiv_id"))
+        or title_i.endswith((".pdf", ".PDF"))
+    )
+    if j_has_better_meta:
+        for field in ("paper_id", "document_id", "arxiv_id", "title"):
+            if src_j.get(field):
+                src_i[field] = src_j[field]
+
+
+def _build_merge_targets(
+    grouped_sources: list[dict],
+    ngrams_per_source: list[set],
+) -> dict[int, int]:
+    """Return a mapping j→i for sources that should be merged (j merged into i)."""
+    merge_target: dict[int, int] = {}
+    for i in range(len(grouped_sources)):
+        if i in merge_target:
+            continue
+        for j in range(i + 1, len(grouped_sources)):
+            if j in merge_target:
+                continue
+            if _compute_overlap(ngrams_per_source[i], ngrams_per_source[j]) > 0.15:
+                merge_target[j] = i
+                grouped_sources[i]["excerpts"].extend(grouped_sources[j]["excerpts"])
+                _merge_source_metadata(grouped_sources[i], grouped_sources[j])
+                ngrams_per_source[i] |= ngrams_per_source[j]
+    return merge_target
+
+
 def merge_duplicate_sources(grouped_sources: list[dict]) -> list[dict]:
     """Merge sources that are the same paper but have different IDs.
 
@@ -77,46 +118,11 @@ def merge_duplicate_sources(grouped_sources: list[dict]) -> list[dict]:
     if len(grouped_sources) <= 1:
         return grouped_sources
 
-    # Pre-compute n-grams for each source's combined excerpts
-    ngrams_per_source = []
-    for src in grouped_sources:
-        combined = " ".join(src.get("excerpts", []))
-        ngrams_per_source.append(_compute_ngrams(combined))
-
-    merge_target: dict[int, int] = {}  # j → i (j is merged into i)
-
-    for i in range(len(grouped_sources)):
-        if i in merge_target:
-            continue
-        for j in range(i + 1, len(grouped_sources)):
-            if j in merge_target:
-                continue
-            if not ngrams_per_source[i] or not ngrams_per_source[j]:
-                continue
-
-            intersection = ngrams_per_source[i] & ngrams_per_source[j]
-            smaller = min(len(ngrams_per_source[i]), len(ngrams_per_source[j]))
-            overlap = len(intersection) / smaller if smaller else 0
-
-            if overlap > 0.15:
-                merge_target[j] = i
-                # Merge excerpts into the keeper
-                grouped_sources[i]["excerpts"].extend(grouped_sources[j]["excerpts"])
-                # Prefer metadata with a proper title over a filename
-                src_i = grouped_sources[i]
-                src_j = grouped_sources[j]
-                title_i = src_i.get("title", "")
-                j_has_better_meta = (
-                    (src_j.get("arxiv_id") and not src_i.get("arxiv_id"))
-                    or title_i.endswith((".pdf", ".PDF"))
-                )
-                if j_has_better_meta:
-                    for field in ("paper_id", "document_id", "arxiv_id", "title"):
-                        if src_j.get(field):
-                            src_i[field] = src_j[field]
-                # Expand n-grams for transitive matching
-                ngrams_per_source[i] |= ngrams_per_source[j]
-
+    ngrams_per_source = [
+        _compute_ngrams(" ".join(src.get("excerpts", [])))
+        for src in grouped_sources
+    ]
+    merge_target = _build_merge_targets(grouped_sources, ngrams_per_source)
     return [src for idx, src in enumerate(grouped_sources) if idx not in merge_target]
 
 

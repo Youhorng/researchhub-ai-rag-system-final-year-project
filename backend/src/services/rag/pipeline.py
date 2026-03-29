@@ -58,7 +58,7 @@ def _source_key(chunk: dict) -> str:
 
 def _extract_citations(text: str, chunks: list[dict]) -> tuple[str, list[dict]]:
     """Extract [N] markers, group by paper/document, renumber sequentially."""
-    original_indices = sorted(set(int(m) for m in re.findall(r"\[(\d+)\]", text)))
+    original_indices = sorted({int(m) for m in re.findall(r"\[(\d+)\]", text)})
 
     seen_sources: dict[str, int] = {}
     sources: list[dict] = []
@@ -110,6 +110,89 @@ def _build_chat_messages(
     return messages
 
 
+def _collect_kb_titles(db: Session, project_id: uuid.UUID | None) -> list[str]:
+    """Collect titles of all accepted papers and indexed documents for a project."""
+    if not project_id:
+        return []
+    accepted_papers = (
+        db.query(ProjectPaper)
+        .filter(ProjectPaper.project_id == project_id, ProjectPaper.status == "accepted")
+        .all()
+    )
+    titles = [pp.paper.title for pp in accepted_papers if pp.paper and pp.paper.title]
+    uploaded_docs = (
+        db.query(Document)
+        .filter(Document.project_id == project_id, Document.chunks_indexed.is_(True))
+        .all()
+    )
+    titles.extend(doc.title for doc in uploaded_docs if doc.title)
+    return titles
+
+
+def _build_cited_sources(grouped_sources: list[dict], full_response: str) -> tuple[list[dict], str]:
+    """Build cited_sources list and renumber [N] markers to fill gaps."""
+    cited_sources: list[dict] = []
+    remap: dict[int, int] = {}
+    for i, src in enumerate(grouped_sources, 1):
+        if f"[{i}]" in full_response:
+            new_idx = len(cited_sources) + 1
+            remap[i] = new_idx
+            cited_sources.append({
+                "index": new_idx,
+                "paper_id": src.get("paper_id"),
+                "document_id": src.get("document_id"),
+                "arxiv_id": src.get("arxiv_id"),
+                "title": src.get("title"),
+            })
+
+    renumbered_text = full_response
+    for old_idx in sorted(remap, reverse=True):
+        renumbered_text = renumbered_text.replace(f"[{old_idx}]", f"[__CITE_{remap[old_idx]}__]")
+    for new_idx in range(1, len(cited_sources) + 1):
+        renumbered_text = renumbered_text.replace(f"[__CITE_{new_idx}__]", f"[{new_idx}]")
+
+    return cited_sources, renumbered_text
+
+
+async def _stream_openai(messages: list[dict], gen_span) -> tuple[str, int, int, int]:
+    """Stream OpenAI chat completion and yield chunks; return full response + token counts."""
+    client = openai.AsyncOpenAI(api_key=settings.openai_api_key)
+    t0 = time.time()
+    full_response = ""
+    input_tokens = 0
+    output_tokens = 0
+
+    stream = await client.chat.completions.create(
+        model=settings.openai_chat_model,
+        messages=messages,
+        temperature=0.3,
+        max_tokens=2048,
+        stream=True,
+        stream_options={"include_usage": True},
+    )
+
+    chunks_yielded = []
+    async for event in stream:
+        if event.usage:
+            input_tokens = event.usage.prompt_tokens
+            output_tokens = event.usage.completion_tokens
+        if not event.choices:
+            continue
+        delta = event.choices[0].delta
+        if delta.content:
+            full_response += delta.content
+            chunks_yielded.append(_sse("chunk", {"content": delta.content}))
+
+    gen_ms = round((time.time() - t0) * 1000)
+    gen_span.update(
+        output=full_response,
+        usage_details={"input": input_tokens, "output": output_tokens},
+        metadata={"latency_ms": gen_ms},
+    )
+    gen_span.end()
+    return full_response, input_tokens, output_tokens, gen_ms, chunks_yielded
+
+
 async def run_rag_pipeline(
     db: Session,
     os_client: OpenSearch,
@@ -133,7 +216,6 @@ async def run_rag_pipeline(
 
         # 3. Run LangGraph agent (guardrail → retrieve → grade → rewrite)
         graph = build_retrieval_graph(os_client, trace)
-
         agent_state = {
             "query": user_query,
             "project_id": str(project_id) if project_id else "",
@@ -145,7 +227,6 @@ async def run_rag_pipeline(
             "rewrite_count": 0,
             "node_timings": {},
         }
-
         result = await graph.ainvoke(agent_state)
 
         # 4. If guardrail rejected → yield rejection and return
@@ -161,31 +242,11 @@ async def run_rag_pipeline(
             trace.end()
             return
 
-        # 5. Use graded chunks from the graph for generation
+        # 5. Build system prompt from graded chunks
         chunks = result.get("graded_chunks", [])
         grouped_sources = group_chunks_by_source(chunks)
         grouped_sources = merge_duplicate_sources(grouped_sources)
-
-        # Fetch accepted paper/document titles for KB inventory
-        accepted_papers = []
-        if project_id:
-            accepted_papers = (
-                db.query(ProjectPaper)
-                .filter(ProjectPaper.project_id == project_id, ProjectPaper.status == "accepted")
-                .all()
-            )
-        paper_titles = [pp.paper.title for pp in accepted_papers if pp.paper and pp.paper.title]
-
-        # Also include uploaded documents
-        uploaded_docs = []
-        if project_id:
-            uploaded_docs = (
-                db.query(Document)
-                .filter(Document.project_id == project_id, Document.chunks_indexed.is_(True))
-                .all()
-            )
-        paper_titles.extend(doc.title for doc in uploaded_docs if doc.title)
-
+        paper_titles = _collect_kb_titles(db, project_id)
         system_message = build_system_message(chunks, grouped_sources=grouped_sources, paper_titles=paper_titles)
         messages = _build_chat_messages(system_message, history, user_query)
 
@@ -195,72 +256,12 @@ async def run_rag_pipeline(
             model=settings.openai_chat_model,
             input=messages,
         )
+        full_response, input_tokens, output_tokens, gen_ms, stream_chunks = await _stream_openai(messages, gen_span)
+        for chunk_sse in stream_chunks:
+            yield chunk_sse
 
-        client = openai.AsyncOpenAI(api_key=settings.openai_api_key)
-        t0 = time.time()
-        full_response = ""
-        input_tokens = 0
-        output_tokens = 0
-
-        stream = await client.chat.completions.create(
-            model=settings.openai_chat_model,
-            messages=messages,
-            temperature=0.3,
-            max_tokens=2048,
-            stream=True,
-            stream_options={"include_usage": True},
-        )
-
-        async for event in stream:
-            if event.usage:
-                input_tokens = event.usage.prompt_tokens
-                output_tokens = event.usage.completion_tokens
-
-            if not event.choices:
-                continue
-
-            delta = event.choices[0].delta
-            if delta.content:
-                full_response += delta.content
-                yield _sse("chunk", {"content": delta.content})
-
-        gen_ms = round((time.time() - t0) * 1000)
-        gen_span.update(
-            output=full_response,
-            usage_details={
-                "input": input_tokens,
-                "output": output_tokens,
-            },
-            metadata={"latency_ms": gen_ms},
-        )
-        gen_span.end()
-
-        # 7. Build cited_sources and renumber to fill gaps (e.g. [1][3] → [1][2])
-        cited_sources = []
-        remap: dict[int, int] = {}
-        for i, src in enumerate(grouped_sources, 1):
-            marker = f"[{i}]"
-            if marker in full_response:
-                new_idx = len(cited_sources) + 1
-                remap[i] = new_idx
-                cited_sources.append({
-                    "index": new_idx,
-                    "paper_id": src.get("paper_id"),
-                    "document_id": src.get("document_id"),
-                    "arxiv_id": src.get("arxiv_id"),
-                    "title": src.get("title"),
-                })
-
-        # Renumber in text: use temp placeholders to avoid collisions
-        renumbered_text = full_response
-        for old_idx in sorted(remap, reverse=True):
-            renumbered_text = renumbered_text.replace(
-                f"[{old_idx}]", f"[__CITE_{remap[old_idx]}__]"
-            )
-        for new_idx in range(1, len(cited_sources) + 1):
-            renumbered_text = renumbered_text.replace(
-                f"[__CITE_{new_idx}__]", f"[{new_idx}]"
-            )
+        # 7. Build cited sources and renumber
+        cited_sources, renumbered_text = _build_cited_sources(grouped_sources, full_response)
 
         # 8. Yield citations + done
         if cited_sources:
@@ -271,7 +272,6 @@ async def run_rag_pipeline(
         hallucination_result = await check_hallucination(full_response, chunks, trace)
 
         # 10. Save assistant message with metadata
-        node_timings = result.get("node_timings", {})
         metadata = {
             "model": settings.openai_chat_model,
             "latency_ms": gen_ms,
@@ -282,12 +282,11 @@ async def run_rag_pipeline(
             "rewrite_count": result.get("rewrite_count", 0),
             "rewritten_query": result.get("rewritten_query", ""),
             "hallucination_check": hallucination_result,
-            "node_timings": node_timings,
+            "node_timings": result.get("node_timings", {}),
         }
         chat_repo.add_message(
             db, session_id, "assistant", renumbered_text, cited_sources, metadata
         )
-
         trace.update(output=full_response)
         trace.end()
 

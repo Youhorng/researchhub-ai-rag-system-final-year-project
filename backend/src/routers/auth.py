@@ -12,7 +12,7 @@ router = APIRouter(prefix="/api/v1", tags=["auth"])
 
 
 # GET /me — return current authenticated user
-@router.get("/me", response_model=UserResponse)
+@router.get("/me")
 async def get_me(user: CurrentUser) -> UserResponse:
     """
     Returns the currently authenticated user.

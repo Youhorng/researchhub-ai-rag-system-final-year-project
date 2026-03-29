@@ -31,11 +31,10 @@ def search_and_suggest_papers(
     Search OpenSearch using Hybrid search + RRF, and save suggestions to Postgres.
     """
 
-    logger.info(f"Searching papers for project: {project.id} with keywords: {keywords}")
-    
-    # Embed the research goal
+    logger.info("Searching papers for project: %s with keywords: %s", project.id, keywords)
+
     vectors = get_embeddings([project.research_goal])
-    if not vectors or len(vectors) == 0:
+    if not vectors:
         logger.error("Failed to generate embedding for research goal")
         return []
     
@@ -59,7 +58,7 @@ def search_and_suggest_papers(
             params={"search_pipeline": settings.opensearch.rrf_pipeline_name}
         )
     except Exception as e:
-        logger.error(f"OpenSearch query failed: {e}")
+        logger.error("OpenSearch query failed: %s", e)
         return []
 
     # Extract the hits and save to Postgres
@@ -97,6 +96,29 @@ def search_and_suggest_papers(
     return suggested_papers
 
 
+def _collect_search_params(db: Session, project: Project) -> tuple[list, list | None, int | None, int | None]:
+    """Aggregate keywords, categories, and year ranges from a project and its topics."""
+    all_keywords: set[str] = set(project.initial_keywords or [])
+    all_categories: set[str] = set(project.arxiv_categories or [])
+    year_from_vals: list[int] = [project.year_from] if project.year_from else []
+    year_to_vals: list[int] = [project.year_to] if project.year_to else []
+
+    for topic in project_repo.list_topics_by_project(db, project.id):
+        all_keywords.update(topic.keywords or [])
+        all_categories.update(topic.arxiv_categories or [])
+        if topic.year_from:
+            year_from_vals.append(topic.year_from)
+        if topic.year_to:
+            year_to_vals.append(topic.year_to)
+
+    return (
+        list(all_keywords),
+        list(all_categories) if all_categories else None,
+        min(year_from_vals) if year_from_vals else None,
+        max(year_to_vals) if year_to_vals else None,
+    )
+
+
 def discover_papers(
     db: Session,
     os_client: OpenSearch,
@@ -107,54 +129,18 @@ def discover_papers(
     Combined search using project + all active topics' search parameters.
     Deduplicates keywords, unions categories, uses broadest date range.
     """
-
-    # Collect keywords from project + all active topics
-    all_keywords: set[str] = set()
-    if project.initial_keywords:
-        all_keywords.update(project.initial_keywords)
-
-    all_categories: set[str] = set()
-    if project.arxiv_categories:
-        all_categories.update(project.arxiv_categories)
-
-    year_from_vals: list[int] = []
-    year_to_vals: list[int] = []
-    if project.year_from:
-        year_from_vals.append(project.year_from)
-    if project.year_to:
-        year_to_vals.append(project.year_to)
-
-    topics = project_repo.list_topics_by_project(db, project.id)
-    for topic in topics:
-        if topic.keywords:
-            all_keywords.update(topic.keywords)
-        if topic.arxiv_categories:
-            all_categories.update(topic.arxiv_categories)
-        if topic.year_from:
-            year_from_vals.append(topic.year_from)
-        if topic.year_to:
-            year_to_vals.append(topic.year_to)
-
-    keywords = list(all_keywords) if all_keywords else []
-    categories = list(all_categories) if all_categories else None
-    year_from = min(year_from_vals) if year_from_vals else None
-    year_to = max(year_to_vals) if year_to_vals else None
-
-    # Embed research goal for KNN vector
     if not project.research_goal:
         logger.warning("Project %s has no research_goal — skipping discover", project.id)
         return []
 
     vectors = get_embeddings([project.research_goal])
-    if not vectors or len(vectors) == 0:
+    if not vectors:
         logger.error("Failed to generate embedding for research goal")
         return []
 
-    query_vector = vectors[0]
-
-    # Build and run combined hybrid search
+    keywords, categories, year_from, year_to = _collect_search_params(db, project)
     query = build_hybrid_search_query(
-        query_vector=query_vector,
+        query_vector=vectors[0],
         keywords=keywords,
         size=limit,
         categories=categories,
@@ -169,37 +155,28 @@ def discover_papers(
             params={"search_pipeline": settings.opensearch.rrf_pipeline_name},
         )
     except Exception as e:
-        logger.error(f"OpenSearch discover query failed: {e}")
+        logger.error("OpenSearch discover query failed: %s", e)
         return []
 
-    # Filter out already-linked papers and create new suggestions
     suggested_papers = []
-    hits = response.get("hits", {}).get("hits", [])
-
-    for hit in hits:
+    for hit in response.get("hits", {}).get("hits", []):
         source = hit["_source"]
-        relevance_score = hit.get("_score", 0.0)
-
         paper = paper_repo.get_or_create(db, source)
-
         existing_link = db.query(ProjectPaper).filter_by(
             project_id=project.id,
             paper_id=paper.id,
         ).first()
-
         if not existing_link:
-            project_paper = ProjectPaper(
+            db.add(ProjectPaper(
                 project_id=project.id,
                 paper_id=paper.id,
                 status="suggested",
-                relevance_score=relevance_score,
+                relevance_score=hit.get("_score", 0.0),
                 added_by="discovery",
-            )
-            db.add(project_paper)
+            ))
             suggested_papers.append(paper)
 
     db.commit()
-
     return suggested_papers
 
 

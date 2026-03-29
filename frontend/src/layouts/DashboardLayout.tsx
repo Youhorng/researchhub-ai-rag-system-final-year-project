@@ -38,8 +38,10 @@ export default function DashboardLayout() {
     <div className="min-h-screen bg-surface flex text-on_surface font-sans overflow-hidden">
       {/* Sidebar Overlay for Mobile */}
       {isSidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-black/50 z-30 lg:hidden"
+        <button
+          type="button"
+          aria-label="Close sidebar"
+          className="fixed inset-0 bg-black/50 z-30 lg:hidden cursor-default"
           onClick={() => setIsSidebarOpen(false)}
         />
       )}
@@ -105,7 +107,7 @@ export default function DashboardLayout() {
                       ? 'bg-primary-gradient text-white shadow-[0_4px_20px_-4px_rgba(167,165,255,0.4)]' 
                       : 'text-zinc-400 hover:text-zinc-200 hover:bg-surface_container_high'
                   }`}
-                  title={!isSidebarOpen ? item.name : undefined}
+                  title={isSidebarOpen ? undefined : item.name}
                 >
                   <item.icon size={20} className={`flex-shrink-0 ${isActive ? 'text-white' : 'text-zinc-500'}`} strokeWidth={isActive ? 2.5 : 2} />
                   {isSidebarOpen && <span>{item.name}</span>}

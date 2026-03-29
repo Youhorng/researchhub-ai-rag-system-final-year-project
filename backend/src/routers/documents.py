@@ -14,6 +14,8 @@ from src.services.storage.minio_client import delete_file, get_minio_client, upl
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
+PROJECT_NOT_FOUND = "Project not found"
+
 router = APIRouter(
     prefix="/api/v1/projects/{project_id}/documents",
     tags=["documents"],
@@ -22,7 +24,15 @@ router = APIRouter(
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50 MB
 
 
-@router.post("", response_model=DocumentResponse, status_code=201)
+@router.post(
+    "",
+    response_model=DocumentResponse,
+    status_code=201,
+    responses={
+        400: {"description": "Invalid file type or size"},
+        404: {"description": PROJECT_NOT_FOUND},
+    },
+)
 async def upload_document(
     project_id: uuid.UUID,
     file: UploadFile,
@@ -34,7 +44,7 @@ async def upload_document(
     # Verify the project belongs to the user
     project = db.query(Project).filter_by(id=project_id, owner_id=current_user.id).first()
     if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+        raise HTTPException(status_code=404, detail=PROJECT_NOT_FOUND)
 
     # Validate file type
     if file.content_type != "application/pdf":
@@ -82,7 +92,11 @@ async def upload_document(
     return document
 
 
-@router.get("", response_model=list[DocumentResponse])
+@router.get(
+    "",
+    response_model=list[DocumentResponse],
+    responses={404: {"description": PROJECT_NOT_FOUND}},
+)
 async def list_documents(
     project_id: uuid.UUID,
     db: DbSession,
@@ -91,12 +105,16 @@ async def list_documents(
     """List all documents for a project."""
     project = db.query(Project).filter_by(id=project_id, owner_id=current_user.id).first()
     if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+        raise HTTPException(status_code=404, detail=PROJECT_NOT_FOUND)
 
     return document_repo.list_by_project(db, project_id)
 
 
-@router.delete("/{document_id}", status_code=204)
+@router.delete(
+    "/{document_id}",
+    status_code=204,
+    responses={404: {"description": "Project or document not found"}},
+)
 async def delete_document(
     project_id: uuid.UUID,
     document_id: uuid.UUID,
@@ -106,7 +124,7 @@ async def delete_document(
     """Delete a document from MinIO, OpenSearch, and Postgres."""
     project = db.query(Project).filter_by(id=project_id, owner_id=current_user.id).first()
     if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+        raise HTTPException(status_code=404, detail=PROJECT_NOT_FOUND)
 
     document = document_repo.get_by_id(db, document_id)
     if not document or document.project_id != project_id:

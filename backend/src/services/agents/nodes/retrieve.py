@@ -48,60 +48,36 @@ def _search_chunks(
     return chunks
 
 
-def _fill_missing_sources(
+def _aggregate_project_sources(os_client: OpenSearch, chunk_index: str, project_id: str) -> set:
+    """Return all (field, value) source tuples indexed for the given project."""
+    agg_query = {
+        "size": 0,
+        "query": {"bool": {"filter": [{"term": {"project_id": project_id}}]}},
+        "aggs": {
+            "papers": {"terms": {"field": "paper_id", "size": 50}},
+            "documents": {"terms": {"field": "document_id", "size": 50}},
+        },
+    }
+    agg_resp = os_client.search(index=chunk_index, body=agg_query)
+    all_sources: set = set()
+    for bucket in agg_resp.get("aggregations", {}).get("papers", {}).get("buckets", []):
+        if bucket["key"]:
+            all_sources.add(("paper_id", bucket["key"]))
+    for bucket in agg_resp.get("aggregations", {}).get("documents", {}).get("buckets", []):
+        if bucket["key"]:
+            all_sources.add(("document_id", bucket["key"]))
+    return all_sources
+
+
+def _fetch_extra_chunks(
     os_client: OpenSearch,
-    existing_chunks: list[dict],
+    chunk_index: str,
+    missing: list,
     query_vector: list[float],
     project_id: str,
 ) -> list[dict]:
-    """Ensure at least one chunk per paper/document in the project.
-
-    After the initial retrieval, some papers may have no chunks in the results.
-    For each missing source, fetch its best-matching chunk so the LLM has
-    context from every paper in the knowledge base.
-    """
-    chunk_index = f"{settings.opensearch.index_name}-{settings.opensearch.chunk_index_suffix}"
-
-    # Collect source keys already covered
-    covered = set()
-    for c in existing_chunks:
-        key = c.get("paper_id") or c.get("document_id") or ""
-        if key:
-            covered.add(key)
-
-    if not covered and not existing_chunks:
-        # Nothing retrieved at all — fetch broadly
-        pass
-
-    # Find all unique sources in the project
-    try:
-        agg_query = {
-            "size": 0,
-            "query": {"bool": {"filter": [{"term": {"project_id": project_id}}]}},
-            "aggs": {
-                "papers": {"terms": {"field": "paper_id", "size": 50}},
-                "documents": {"terms": {"field": "document_id", "size": 50}},
-            },
-        }
-        agg_resp = os_client.search(index=chunk_index, body=agg_query)
-        all_sources = set()
-        for bucket in agg_resp.get("aggregations", {}).get("papers", {}).get("buckets", []):
-            if bucket["key"]:
-                all_sources.add(("paper_id", bucket["key"]))
-        for bucket in agg_resp.get("aggregations", {}).get("documents", {}).get("buckets", []):
-            if bucket["key"]:
-                all_sources.add(("document_id", bucket["key"]))
-    except Exception:
-        logger.exception("Failed to aggregate sources for diversity fill")
-        return existing_chunks
-
-    # Find missing sources
-    missing = [(field, val) for field, val in all_sources if val not in covered]
-    if not missing:
-        return existing_chunks
-
-    # For each missing source, fetch its best chunks by vector similarity
-    extra_chunks = []
+    """Fetch best-matching chunks for each missing source."""
+    extra_chunks: list[dict] = []
     for field, source_id in missing:
         try:
             fill_query = {
@@ -135,7 +111,35 @@ def _fill_missing_sources(
                 extra_chunks.append(src)
         except Exception:
             logger.warning("Failed to fill chunk for %s=%s", field, source_id)
+    return extra_chunks
 
+
+def _fill_missing_sources(
+    os_client: OpenSearch,
+    existing_chunks: list[dict],
+    query_vector: list[float],
+    project_id: str,
+) -> list[dict]:
+    """Ensure at least one chunk per paper/document in the project."""
+    chunk_index = f"{settings.opensearch.index_name}-{settings.opensearch.chunk_index_suffix}"
+
+    covered = {
+        c.get("paper_id") or c.get("document_id") or ""
+        for c in existing_chunks
+        if c.get("paper_id") or c.get("document_id")
+    }
+
+    try:
+        all_sources = _aggregate_project_sources(os_client, chunk_index, project_id)
+    except Exception:
+        logger.exception("Failed to aggregate sources for diversity fill")
+        return existing_chunks
+
+    missing = [(field, val) for field, val in all_sources if val not in covered]
+    if not missing:
+        return existing_chunks
+
+    extra_chunks = _fetch_extra_chunks(os_client, chunk_index, missing, query_vector, project_id)
     return existing_chunks + extra_chunks
 
 

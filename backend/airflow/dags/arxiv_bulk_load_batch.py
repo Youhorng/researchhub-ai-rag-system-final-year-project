@@ -329,7 +329,6 @@ def arxiv_bulk_load_batch_dag():
                     f"{result.get('error', '')}"
                 )
                 _reset_batch(db_conn, batch_id)
-                continue
 
     process_all_batches()
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@clerk/react';
 import { BarChart3, Loader2, Folder, FileText, MessageSquare, Database } from 'lucide-react';
 import { 
@@ -29,6 +29,54 @@ interface ProjectData {
 }
 
 const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f59e0b', '#10b981', '#06b6d4', '#3b82f6', '#14b8a6', '#84cc16'];
+
+interface StatCardProps {
+  readonly title: string;
+  readonly value: number;
+  readonly icon: React.ElementType;
+  readonly colorClass: string;
+  readonly borderClass: string;
+}
+
+const StatCard = ({ title, value, icon: Icon, colorClass, borderClass }: StatCardProps) => (
+  <div className={`bg-surface_container border ${borderClass} p-6 rounded-2xl flex items-center justify-between shadow-sm`}>
+    <div>
+      <p className="text-zinc-400 text-sm font-medium mb-1">{title}</p>
+      <h3 className="text-3xl font-bold text-white">{value.toLocaleString()}</h3>
+    </div>
+    <div className={`w-12 h-12 rounded-xl flex items-center justify-center bg-surface_container_high ${colorClass}`}>
+      <Icon size={24} />
+    </div>
+  </div>
+);
+
+interface TooltipPayloadEntry {
+  color: string;
+  name: string;
+  value: number;
+}
+
+interface CustomTooltipProps {
+  readonly active?: boolean;
+  readonly payload?: TooltipPayloadEntry[];
+  readonly label?: string;
+}
+
+const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
+  if (active && payload?.length) {
+    return (
+      <div className="bg-surface_container_high border border-[#161f33] p-3 rounded-lg shadow-xl">
+        <p className="text-zinc-300 text-sm font-medium mb-1">{label}</p>
+        {payload.map((entry) => (
+          <p key={entry.name} className="text-sm font-bold" style={{ color: entry.color }}>
+            {entry.name}: {entry.value}
+          </p>
+        ))}
+      </div>
+    );
+  }
+  return null;
+};
 
 export default function AnalyticsPage() {
   const { getToken } = useAuth();
@@ -92,34 +140,6 @@ export default function AnalyticsPage() {
   useEffect(() => {
     fetchAnalytics();
   }, [fetchAnalytics]);
-
-  const StatCard = ({ title, value, icon: Icon, colorClass, borderClass }: any) => (
-    <div className={`bg-surface_container border ${borderClass} p-6 rounded-2xl flex items-center justify-between shadow-sm`}>
-      <div>
-        <p className="text-zinc-400 text-sm font-medium mb-1">{title}</p>
-        <h3 className="text-3xl font-bold text-white">{value.toLocaleString()}</h3>
-      </div>
-      <div className={`w-12 h-12 rounded-xl flex items-center justify-center bg-surface_container_high ${colorClass}`}>
-        <Icon size={24} />
-      </div>
-    </div>
-  );
-
-  const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className="bg-surface_container_high border border-[#161f33] p-3 rounded-lg shadow-xl">
-          <p className="text-zinc-300 text-sm font-medium mb-1">{label}</p>
-          {payload.map((entry: any, index: number) => (
-            <p key={index} className="text-sm font-bold" style={{ color: entry.color }}>
-              {entry.name}: {entry.value}
-            </p>
-          ))}
-        </div>
-      );
-    }
-    return null;
-  };
 
   return (
     <div className="flex flex-col font-sans pb-8 max-w-7xl mx-auto w-full">

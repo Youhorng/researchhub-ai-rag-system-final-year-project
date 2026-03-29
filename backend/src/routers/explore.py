@@ -1,11 +1,10 @@
 import logging
-from typing import Optional, List
-from fastapi import APIRouter, Depends, Query, HTTPException
-from opensearchpy import OpenSearch
+from typing import Annotated, Optional, List
+from fastapi import APIRouter, Query, HTTPException
 from pydantic import BaseModel
 
 from src.config import get_settings
-from src.services.opensearch.client import get_os_client
+from src.dependencies import OsClient
 from src.services.opensearch.query_builder import build_hybrid_search_query
 
 logger = logging.getLogger(__name__)
@@ -31,15 +30,19 @@ class ExploreSearchResponse(BaseModel):
     page: int
     hits: list[ExploreSearchResponseHit]
 
-@router.get("/search", response_model=ExploreSearchResponse)
+@router.get(
+    "/search",
+    response_model=ExploreSearchResponse,
+    responses={502: {"description": "Search service unavailable"}},
+)
 async def explore_search(
-    q: str = Query(..., description="The search query"),
-    categories: Optional[List[str]] = Query(None, description="Optional list of categories to filter by"),
-    year_from: Optional[int] = Query(None, description="Start year"),
-    year_to: Optional[int] = Query(None, description="End year"),
-    page: int = Query(1, ge=1, description="Page number"),
-    limit: int = Query(20, ge=1, le=100, description="Results per page"),
-    os_client: OpenSearch = Depends(get_os_client),
+    os_client: OsClient,
+    q: Annotated[str, Query(description="The search query")],
+    categories: Annotated[Optional[List[str]], Query(description="Optional list of categories to filter by")] = None,
+    year_from: Annotated[Optional[int], Query(description="Start year")] = None,
+    year_to: Annotated[Optional[int], Query(description="End year")] = None,
+    page: Annotated[int, Query(ge=1, description="Page number")] = 1,
+    limit: Annotated[int, Query(ge=1, le=100, description="Results per page")] = 20,
 ):
     """Run global hybrid BM25 + KNN search against the full arXiv index."""
     
@@ -64,7 +67,7 @@ async def explore_search(
             index=settings.opensearch.index_name,
             body=query,
         )
-    except Exception as e:
+    except Exception:
         logger.exception("OpenSearch explore search failed")
         raise HTTPException(status_code=502, detail="Search service unavailable")
         

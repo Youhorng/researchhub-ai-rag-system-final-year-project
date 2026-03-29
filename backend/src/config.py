@@ -3,35 +3,12 @@ from functools import lru_cache
 from pydantic import BaseModel, computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# These are plain pydantic BaseModels (NOT BaseSettings).
-# They are nested inside the main Settings class below.
-# pydantic-settings maps double-underscore env vars to nested model fields:
-#   LANGFUSE__HOST  →  settings.langfuse.host
-#   REDIS__HOST     →  settings.redis.host
-#   CHUNKING__CHUNK_SIZE → settings.chunking.chunk_size
-# This is controlled by env_nested_delimiter="__" in the main Settings class.
 
 class LangfuseSettings(BaseModel):
     enabled: bool = True
     flush_at: int = 15
     flush_interval: float = 1.0
     debug: bool = False
-
-
-class RedisSettings(BaseModel):
-    host: str = "redis"      # maps to REDIS__HOST (Docker service name)
-    port: int = 6379         # maps to REDIS__PORT
-    password: str = ""       # maps to REDIS__PASSWORD
-    db: int = 0              # maps to REDIS__DB
-    ttl_hours: int = 6       # maps to REDIS__TTL_HOURS
-
-    @computed_field
-    @property
-    def url(self) -> str:
-        # Include password in URL only if set (Redis is optional in dev)
-        if self.password:
-            return f"redis://:{self.password}@{self.host}:{self.port}/{self.db}"
-        return f"redis://{self.host}:{self.port}/{self.db}"
 
 
 class ChunkingSettings(BaseModel):
@@ -93,6 +70,12 @@ class Settings(BaseSettings):
     clerk_publishable_key: str = ""    # CLERK_PUBLISHABLE_KEY
     clerk_jwks_url: str = ""           # CLERK_JWKS_URL
 
+    # SonarCloud
+    sonarcloud_token: str = ""
+    sonarcloud_org: str = ""
+    sonarcloud_project: str = ""
+    sonarcloud_base_url: str = ""
+
     # OpenAI Model
     openai_chat_model: str = "gpt-4o-mini"
     openai_api_url: str = "https://api.openai.com/v1/embeddings"
@@ -117,7 +100,6 @@ class Settings(BaseSettings):
 
     # pydantic-settings 
     langfuse: LangfuseSettings = LangfuseSettings()
-    redis: RedisSettings = RedisSettings()
     chunking: ChunkingSettings = ChunkingSettings()
     opensearch: OpenSearchSettings = OpenSearchSettings()
 

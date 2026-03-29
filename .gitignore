@@ -56,3 +56,7 @@ backend/airflow/data
 
 # Ignore claude md
 CLAUDE.md
+
+/backend/export_sonar.py
+/backend/sonar-issues.csv
+/backend/sonar-issues.json

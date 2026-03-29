@@ -30,12 +30,12 @@ interface EditTopic {
 }
 
 interface NewTopicModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  projectId: string;
-  onTopicCreated: (topic: any) => void;
-  onTopicUpdated?: (topic: any) => void;
-  editTopic?: EditTopic | null;
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly projectId: string;
+  readonly onTopicCreated: (topic: any) => void;
+  readonly onTopicUpdated?: (topic: any) => void;
+  readonly editTopic?: EditTopic | null;
 }
 
 export default function NewTopicModal({ isOpen, onClose, projectId, onTopicCreated, onTopicUpdated, editTopic }: NewTopicModalProps) {
@@ -175,8 +175,8 @@ export default function NewTopicModal({ isOpen, onClose, projectId, onTopicCreat
       name: topicName.trim(),
       keywords: selectedKeywords.size > 0 ? Array.from(selectedKeywords) : null,
       arxiv_categories: selectedCategories.size > 0 ? Array.from(selectedCategories) : null,
-      year_from: yearFrom ? parseInt(yearFrom) : null,
-      year_to: yearTo ? parseInt(yearTo) : null,
+      year_from: yearFrom ? Number.parseInt(yearFrom) : null,
+      year_to: yearTo ? Number.parseInt(yearTo) : null,
     };
 
     try {
@@ -267,13 +267,19 @@ export default function NewTopicModal({ isOpen, onClose, projectId, onTopicCreat
 
   if (!isOpen) return null;
 
-  const headerTitle = step === 1
-    ? (isEditMode ? 'Edit Topic' : 'Create New Topic')
-    : 'Review Discovered Papers';
+  let headerTitle: string;
+  if (step === 1) {
+    headerTitle = isEditMode ? 'Edit Topic' : 'Create New Topic';
+  } else {
+    headerTitle = 'Review Discovered Papers';
+  }
 
-  const saveButtonLabel = isEditMode
-    ? (isSaving ? 'Saving...' : 'Save & Find Papers')
-    : (isSaving ? 'Creating...' : 'Create Topic & Find Papers');
+  let saveButtonLabel: string;
+  if (isEditMode) {
+    saveButtonLabel = isSaving ? 'Saving...' : 'Save & Find Papers';
+  } else {
+    saveButtonLabel = isSaving ? 'Creating...' : 'Create Topic & Find Papers';
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
@@ -296,8 +302,9 @@ export default function NewTopicModal({ isOpen, onClose, projectId, onTopicCreat
               {error && <div className="p-3 bg-red-500/10 text-red-400 border border-red-500/20 rounded-lg text-sm">{error}</div>}
 
               <div>
-                <label className="block text-sm font-medium text-zinc-100 mb-1.5">Topic Name *</label>
+                <label htmlFor="topic-name-input" className="block text-sm font-medium text-zinc-100 mb-1.5">Topic Name *</label>
                 <input
+                  id="topic-name-input"
                   type="text"
                   value={topicName}
                   onChange={(e) => setTopicName(e.target.value)}
@@ -309,8 +316,9 @@ export default function NewTopicModal({ isOpen, onClose, projectId, onTopicCreat
               {/* Research Goal + Suggest Keywords */}
               <div className="p-4 bg-surface_container_low border border-[#161f33] rounded-xl space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-zinc-100 mb-1.5">Topic Goal</label>
+                  <label htmlFor="topic-goal-textarea" className="block text-sm font-medium text-zinc-100 mb-1.5">Topic Goal</label>
                   <textarea
+                    id="topic-goal-textarea"
                     value={researchGoal}
                     onChange={(e) => setResearchGoal(e.target.value)}
                     rows={2}
@@ -382,10 +390,9 @@ export default function NewTopicModal({ isOpen, onClose, projectId, onTopicCreat
                     }
                   }}
                 >
-                  <label className="block text-sm font-medium text-zinc-100 mb-1.5">arXiv Categories</label>
+                  <label htmlFor="category-search" className="block text-sm font-medium text-zinc-100 mb-1.5">arXiv Categories</label>
                   <div
                     className="w-full min-h-[44px] bg-surface_container_high border border-[#161f33] rounded-xl px-2 py-1.5 flex flex-wrap gap-1.5 items-center cursor-text transition-colors focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/50"
-                    onClick={() => setIsCategoryDropdownOpen(true)}
                   >
                     {Array.from(selectedCategories).map(catId => (
                       <span key={catId} className="bg-surface_container border border-zinc-700 text-white text-xs px-2 py-1 rounded-md flex items-center gap-1.5">
@@ -400,6 +407,7 @@ export default function NewTopicModal({ isOpen, onClose, projectId, onTopicCreat
                       value={categorySearch}
                       onChange={(e) => { setCategorySearch(e.target.value); if (!isCategoryDropdownOpen) setIsCategoryDropdownOpen(true); }}
                       onFocus={() => setIsCategoryDropdownOpen(true)}
+                      id="category-search"
                       className="flex-1 bg-transparent border-none text-white placeholder-zinc-400 focus:outline-none focus:ring-0 text-sm min-w-[120px] px-2 py-1"
                       placeholder={selectedCategories.size === 0 ? 'Search categories...' : ''}
                     />
@@ -428,27 +436,29 @@ export default function NewTopicModal({ isOpen, onClose, projectId, onTopicCreat
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-zinc-100 mb-1.5">Year From</label>
+                    <label htmlFor="year-from" className="block text-sm font-medium text-zinc-100 mb-1.5">Year From</label>
                     <input
+                      id="year-from"
                       type="text"
                       inputMode="numeric"
                       pattern="[0-9]*"
                       maxLength={4}
                       value={yearFrom}
-                      onChange={(e) => setYearFrom(e.target.value.replace(/[^0-9]/g, ''))}
+                      onChange={(e) => setYearFrom(e.target.value.replaceAll(/\D/g, ''))}
                       className="w-full bg-surface_container_high border border-[#161f33] rounded-xl px-4 py-2.5 text-white placeholder-zinc-400 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 text-sm"
                       placeholder="2020"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-zinc-100 mb-1.5">Year To</label>
+                    <label htmlFor="year-to" className="block text-sm font-medium text-zinc-100 mb-1.5">Year To</label>
                     <input
+                      id="year-to"
                       type="text"
                       inputMode="numeric"
                       pattern="[0-9]*"
                       maxLength={4}
                       value={yearTo}
-                      onChange={(e) => setYearTo(e.target.value.replace(/[^0-9]/g, ''))}
+                      onChange={(e) => setYearTo(e.target.value.replaceAll(/\D/g, ''))}
                       className="w-full bg-surface_container_high border border-[#161f33] rounded-xl px-4 py-2.5 text-white placeholder-zinc-400 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 text-sm"
                       placeholder="2025"
                     />
@@ -487,75 +497,83 @@ export default function NewTopicModal({ isOpen, onClose, projectId, onTopicCreat
                 Papers discovered for this topic. Accept papers to add them to your Knowledge Base, or reject to dismiss.
               </p>
 
-              {isSearchingPapers ? (
-                <div className="p-8 flex flex-col items-center justify-center text-zinc-400 bg-surface_container_low rounded-xl border border-[#161f33]">
-                  <Loader2 size={24} className="animate-spin mb-2 text-indigo-400" />
-                  <p className="text-sm">Searching for relevant papers...</p>
-                </div>
-              ) : suggestedPapers.length > 0 ? (
-                <div className="space-y-3">
-                  {suggestedPapers.map(paper => {
-                    const action = paperActions[paper.id];
-                    if (action === 'rejected') return null;
-                    return (
-                      <div
-                        key={paper.id}
-                        className={`p-4 rounded-xl border transition-colors ${
-                          action === 'accepted'
-                            ? 'bg-emerald-500/5 border-emerald-500/20'
-                            : 'bg-surface_container_high border-[#161f33]'
-                        }`}
-                      >
-                        <div className="flex justify-between items-start gap-4">
-                          <div className="flex-1 min-w-0">
-                            <h4 className="text-sm font-bold text-white leading-snug mb-1">{paper.title}</h4>
-                            {paper.authors && paper.authors.length > 0 && (
-                              <p className="text-xs text-zinc-500 mb-1">{paper.authors.slice(0, 3).join(', ')}{paper.authors.length > 3 && ' et al.'}</p>
-                            )}
-                            {paper.abstract && (
-                              <p className="text-xs text-zinc-400 line-clamp-2">{paper.abstract}</p>
-                            )}
-                            <div className="flex gap-2 mt-2">
-                              {paper.categories?.slice(0, 3).map((cat: string) => (
-                                <span key={cat} className="text-[10px] px-2 py-0.5 bg-secondary_container text-on_secondary_container rounded-md">{cat}</span>
-                              ))}
+              {(() => {
+                if (isSearchingPapers) {
+                  return (
+                    <div className="p-8 flex flex-col items-center justify-center text-zinc-400 bg-surface_container_low rounded-xl border border-[#161f33]">
+                      <Loader2 size={24} className="animate-spin mb-2 text-indigo-400" />
+                      <p className="text-sm">Searching for relevant papers...</p>
+                    </div>
+                  );
+                }
+                if (suggestedPapers.length > 0) {
+                  return (
+                    <div className="space-y-3">
+                      {suggestedPapers.map(paper => {
+                        const action = paperActions[paper.id];
+                        if (action === 'rejected') return null;
+                        return (
+                          <div
+                            key={paper.id}
+                            className={`p-4 rounded-xl border transition-colors ${
+                              action === 'accepted'
+                                ? 'bg-emerald-500/5 border-emerald-500/20'
+                                : 'bg-surface_container_high border-[#161f33]'
+                            }`}
+                          >
+                            <div className="flex justify-between items-start gap-4">
+                              <div className="flex-1 min-w-0">
+                                <h4 className="text-sm font-bold text-white leading-snug mb-1">{paper.title}</h4>
+                                {paper.authors && paper.authors.length > 0 && (
+                                  <p className="text-xs text-zinc-500 mb-1">{paper.authors.slice(0, 3).join(', ')}{paper.authors.length > 3 && ' et al.'}</p>
+                                )}
+                                {paper.abstract && (
+                                  <p className="text-xs text-zinc-400 line-clamp-2">{paper.abstract}</p>
+                                )}
+                                <div className="flex gap-2 mt-2">
+                                  {paper.categories?.slice(0, 3).map((cat: string) => (
+                                    <span key={cat} className="text-[10px] px-2 py-0.5 bg-secondary_container text-on_secondary_container rounded-md">{cat}</span>
+                                  ))}
+                                </div>
+                              </div>
+                              <div className="flex flex-col gap-2 flex-shrink-0">
+                                {action === 'accepted' ? (
+                                  <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                                    <CheckCircle2 size={14} />
+                                    Added
+                                  </span>
+                                ) : (
+                                  <>
+                                    <button
+                                      onClick={() => handleAcceptPaper(paper.id)}
+                                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors"
+                                    >
+                                      <CheckCircle2 size={14} />
+                                      Accept
+                                    </button>
+                                    <button
+                                      onClick={() => handleRejectPaper(paper.id)}
+                                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-colors"
+                                    >
+                                      <XCircle size={14} />
+                                      Reject
+                                    </button>
+                                  </>
+                                )}
+                              </div>
                             </div>
                           </div>
-                          <div className="flex flex-col gap-2 flex-shrink-0">
-                            {action === 'accepted' ? (
-                              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                                <CheckCircle2 size={14} />
-                                Added
-                              </span>
-                            ) : (
-                              <>
-                                <button
-                                  onClick={() => handleAcceptPaper(paper.id)}
-                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors"
-                                >
-                                  <CheckCircle2 size={14} />
-                                  Accept
-                                </button>
-                                <button
-                                  onClick={() => handleRejectPaper(paper.id)}
-                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-colors"
-                                >
-                                  <XCircle size={14} />
-                                  Reject
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="p-6 text-center text-zinc-500 bg-surface_container_low rounded-xl text-sm border border-[#161f33]">
-                  No papers found for this topic's keywords. You can still find papers via the Knowledge Base.
-                </div>
-              )}
+                        );
+                      })}
+                    </div>
+                  );
+                }
+                return (
+                  <div className="p-6 text-center text-zinc-500 bg-surface_container_low rounded-xl text-sm border border-[#161f33]">
+                    No papers found for this topic's keywords. You can still find papers via the Knowledge Base.
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Footer */}

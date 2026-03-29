@@ -75,8 +75,8 @@ export default function SettingsPage() {
         research_goal: researchGoal || null,
         initial_keywords: keywords.length > 0 ? keywords : null,
         arxiv_categories: selectedCategories.size > 0 ? Array.from(selectedCategories) : null,
-        year_from: yearFrom ? parseInt(yearFrom) : null,
-        year_to: yearTo ? parseInt(yearTo) : null,
+        year_from: yearFrom ? Number.parseInt(yearFrom) : null,
+        year_to: yearTo ? Number.parseInt(yearTo) : null,
       };
       const res = await fetch(`${apiUrl}/projects/${projectId}`, {
         method: 'PATCH',
@@ -175,8 +175,9 @@ export default function SettingsPage() {
         <h2 className="text-lg font-bold text-white">General</h2>
 
         <div>
-          <label className="block text-sm font-medium text-zinc-100 mb-1.5">Project Name</label>
+          <label htmlFor="settings-name" className="block text-sm font-medium text-zinc-100 mb-1.5">Project Name</label>
           <input
+            id="settings-name"
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -185,8 +186,9 @@ export default function SettingsPage() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-zinc-100 mb-1.5">Description</label>
+          <label htmlFor="settings-description" className="block text-sm font-medium text-zinc-100 mb-1.5">Description</label>
           <textarea
+            id="settings-description"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={2}
@@ -196,8 +198,9 @@ export default function SettingsPage() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-zinc-100 mb-1.5">Research Goal</label>
+          <label htmlFor="settings-research-goal" className="block text-sm font-medium text-zinc-100 mb-1.5">Research Goal</label>
           <textarea
+            id="settings-research-goal"
             value={researchGoal}
             onChange={(e) => setResearchGoal(e.target.value)}
             rows={3}
@@ -213,7 +216,7 @@ export default function SettingsPage() {
 
         {/* Keywords */}
         <div>
-          <label className="block text-sm font-medium text-zinc-100 mb-1.5">Keywords</label>
+          <label htmlFor="settings-new-keyword" className="block text-sm font-medium text-zinc-100 mb-1.5">Keywords</label>
           <div className="flex flex-wrap gap-2 mb-3">
             {keywords.map(kw => (
               <span
@@ -229,6 +232,7 @@ export default function SettingsPage() {
           </div>
           <div className="flex gap-2">
             <input
+              id="settings-new-keyword"
               type="text"
               value={newKeyword}
               onChange={(e) => setNewKeyword(e.target.value)}
@@ -256,10 +260,9 @@ export default function SettingsPage() {
             }
           }}
         >
-          <label className="block text-sm font-medium text-zinc-100 mb-1.5">arXiv Categories</label>
+          <label htmlFor="settings-category-search" className="block text-sm font-medium text-zinc-100 mb-1.5">arXiv Categories</label>
           <div
             className="w-full min-h-[44px] bg-surface_container_high border border-[#161f33] rounded-xl px-2 py-1.5 flex flex-wrap gap-1.5 items-center cursor-text transition-colors focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/50"
-            onClick={() => setIsCategoryDropdownOpen(true)}
           >
             {Array.from(selectedCategories).map(catId => (
               <span key={catId} className="bg-surface_container border border-zinc-700 text-white text-xs px-2 py-1 rounded-md flex items-center gap-1.5">
@@ -277,6 +280,7 @@ export default function SettingsPage() {
                 if (!isCategoryDropdownOpen) setIsCategoryDropdownOpen(true);
               }}
               onFocus={() => setIsCategoryDropdownOpen(true)}
+              id="settings-category-search"
               className="flex-1 bg-transparent border-none text-white placeholder-zinc-400 focus:outline-none focus:ring-0 text-sm min-w-[120px] px-2 py-1"
               placeholder={selectedCategories.size === 0 ? "Search categories..." : ""}
             />
@@ -307,27 +311,29 @@ export default function SettingsPage() {
         {/* Year range */}
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-zinc-100 mb-1.5">Year From</label>
+            <label htmlFor="settings-year-from" className="block text-sm font-medium text-zinc-100 mb-1.5">Year From</label>
             <input
+              id="settings-year-from"
               type="text"
               inputMode="numeric"
               pattern="[0-9]*"
               maxLength={4}
               value={yearFrom}
-              onChange={(e) => setYearFrom(e.target.value.replace(/[^0-9]/g, ''))}
+              onChange={(e) => setYearFrom(e.target.value.replaceAll(/\D/g, ''))}
               className="w-full bg-surface_container_high border border-[#161f33] rounded-xl px-4 py-2.5 text-white placeholder-zinc-400 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 text-sm"
               placeholder="2020"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-zinc-100 mb-1.5">Year To</label>
+            <label htmlFor="settings-year-to" className="block text-sm font-medium text-zinc-100 mb-1.5">Year To</label>
             <input
+              id="settings-year-to"
               type="text"
               inputMode="numeric"
               pattern="[0-9]*"
               maxLength={4}
               value={yearTo}
-              onChange={(e) => setYearTo(e.target.value.replace(/[^0-9]/g, ''))}
+              onChange={(e) => setYearTo(e.target.value.replaceAll(/\D/g, ''))}
               className="w-full bg-surface_container_high border border-[#161f33] rounded-xl px-4 py-2.5 text-white placeholder-zinc-400 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 text-sm"
               placeholder="2024"
             />

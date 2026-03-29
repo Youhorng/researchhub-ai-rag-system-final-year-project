@@ -145,6 +145,96 @@ export default function TopicsPage() {
     refreshPapers();
   };
 
+  let topicsContent: React.ReactNode;
+  if (isLoading) {
+    topicsContent = (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="animate-spin text-primary" size={32} />
+      </div>
+    );
+  } else if (topics.length === 0) {
+    topicsContent = (
+      <div className="flex flex-col items-center justify-center text-center p-12 border-2 border-dashed border-[#161f33] rounded-2xl bg-surface_container/50">
+        <Tag className="text-zinc-600 mb-4" size={48} />
+        <h3 className="text-lg font-medium text-white mb-2">No topics yet</h3>
+        <p className="text-zinc-400 text-sm max-w-sm mb-6">
+          Topics help you organize your research into focused areas. Create a topic to discover relevant papers automatically.
+        </p>
+        <button
+          onClick={openCreateModal}
+          className="flex items-center gap-2 bg-primary-gradient text-white px-5 py-2.5 rounded-xl font-medium shadow-[0_4px_20px_-4px_rgba(167,165,255,0.4)] hover:shadow-[0_4px_24px_-4px_rgba(167,165,255,0.6)] transition-all text-sm"
+        >
+          <Plus size={16} />
+          Create Your First Topic
+        </button>
+      </div>
+    );
+  } else {
+    topicsContent = (
+      <div className="grid gap-4">
+        {topics.map(topic => {
+          const paperCount = getPaperCount(topic.id);
+          return (
+            <div
+              key={topic.id}
+              className="bg-surface_container border border-[#161f33] rounded-2xl overflow-hidden hover:border-indigo-500/30 transition-colors"
+            >
+              <div className="p-5 flex items-start gap-4">
+                <div className="p-2 bg-indigo-500/10 rounded-lg flex-shrink-0 mt-0.5">
+                  <Tag size={18} className="text-indigo-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-3 mb-1">
+                    <h3 className="text-base font-bold text-white">{topic.name}</h3>
+                    <span className="flex items-center gap-1 text-xs text-zinc-500">
+                      <FileText size={12} />
+                      {paperCount} paper{paperCount === 1 ? '' : 's'}
+                    </span>
+                  </div>
+                  {topic.keywords && topic.keywords.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {topic.keywords.map(kw => (
+                        <span key={kw} className="text-xs px-2 py-0.5 bg-secondary_container text-on_secondary_container rounded-md">{kw}</span>
+                      ))}
+                    </div>
+                  )}
+                  {topic.arxiv_categories && topic.arxiv_categories.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {topic.arxiv_categories.map(cat => (
+                        <span key={cat} className="text-[10px] px-2 py-0.5 bg-surface_container_high text-zinc-400 rounded-md border border-[#161f33]">{cat}</span>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex items-center gap-4 mt-2 text-xs text-zinc-500">
+                    {topic.year_from && <span>From: {topic.year_from}</span>}
+                    {topic.year_to && <span>To: {topic.year_to}</span>}
+                    <span>Created {new Date(topic.added_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <button
+                    onClick={() => openEditModal(topic)}
+                    className="p-2 text-zinc-500 hover:text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-colors"
+                    title="Edit topic"
+                  >
+                    <Pencil size={16} />
+                  </button>
+                  <button
+                    onClick={() => setDeleteConfirmId(topic.id)}
+                    className="p-2 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                    title="Delete topic"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in zoom-in-95 duration-300">
       {/* Page Header */}
@@ -168,89 +258,7 @@ export default function TopicsPage() {
       </div>
 
       {/* Topics List */}
-      {isLoading ? (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="animate-spin text-primary" size={32} />
-        </div>
-      ) : topics.length === 0 ? (
-        <div className="flex flex-col items-center justify-center text-center p-12 border-2 border-dashed border-[#161f33] rounded-2xl bg-surface_container/50">
-          <Tag className="text-zinc-600 mb-4" size={48} />
-          <h3 className="text-lg font-medium text-white mb-2">No topics yet</h3>
-          <p className="text-zinc-400 text-sm max-w-sm mb-6">
-            Topics help you organize your research into focused areas. Create a topic to discover relevant papers automatically.
-          </p>
-          <button
-            onClick={openCreateModal}
-            className="flex items-center gap-2 bg-primary-gradient text-white px-5 py-2.5 rounded-xl font-medium shadow-[0_4px_20px_-4px_rgba(167,165,255,0.4)] hover:shadow-[0_4px_24px_-4px_rgba(167,165,255,0.6)] transition-all text-sm"
-          >
-            <Plus size={16} />
-            Create Your First Topic
-          </button>
-        </div>
-      ) : (
-        <div className="grid gap-4">
-          {topics.map(topic => {
-            const paperCount = getPaperCount(topic.id);
-
-            return (
-              <div
-                key={topic.id}
-                className="bg-surface_container border border-[#161f33] rounded-2xl overflow-hidden hover:border-indigo-500/30 transition-colors"
-              >
-                <div className="p-5 flex items-start gap-4">
-                  <div className="p-2 bg-indigo-500/10 rounded-lg flex-shrink-0 mt-0.5">
-                    <Tag size={18} className="text-indigo-400" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3 mb-1">
-                      <h3 className="text-base font-bold text-white">{topic.name}</h3>
-                      <span className="flex items-center gap-1 text-xs text-zinc-500">
-                        <FileText size={12} />
-                        {paperCount} paper{paperCount !== 1 ? 's' : ''}
-                      </span>
-                    </div>
-                    {topic.keywords && topic.keywords.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 mt-2">
-                        {topic.keywords.map(kw => (
-                          <span key={kw} className="text-xs px-2 py-0.5 bg-secondary_container text-on_secondary_container rounded-md">{kw}</span>
-                        ))}
-                      </div>
-                    )}
-                    {topic.arxiv_categories && topic.arxiv_categories.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 mt-2">
-                        {topic.arxiv_categories.map(cat => (
-                          <span key={cat} className="text-[10px] px-2 py-0.5 bg-surface_container_high text-zinc-400 rounded-md border border-[#161f33]">{cat}</span>
-                        ))}
-                      </div>
-                    )}
-                    <div className="flex items-center gap-4 mt-2 text-xs text-zinc-500">
-                      {topic.year_from && <span>From: {topic.year_from}</span>}
-                      {topic.year_to && <span>To: {topic.year_to}</span>}
-                      <span>Created {new Date(topic.added_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1 flex-shrink-0">
-                    <button
-                      onClick={() => openEditModal(topic)}
-                      className="p-2 text-zinc-500 hover:text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-colors"
-                      title="Edit topic"
-                    >
-                      <Pencil size={16} />
-                    </button>
-                    <button
-                      onClick={() => setDeleteConfirmId(topic.id)}
-                      className="p-2 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
-                      title="Delete topic"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+      {topicsContent}      )}
 
       {/* Topic Modal (Create / Edit) */}
       {projectId && (

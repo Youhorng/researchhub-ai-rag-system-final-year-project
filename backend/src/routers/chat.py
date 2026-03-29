@@ -1,11 +1,11 @@
 import logging
 import uuid
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from opensearchpy import OpenSearch
+from fastapi import APIRouter, HTTPException, Query
 from sse_starlette.sse import EventSourceResponse
 
-from src.dependencies import CurrentUser, DbSession
+from src.dependencies import CurrentUser, DbSession, OsClient
 from src.models.project import Project
 from src.repositories import chat_repo
 from src.schemas.chat import (
@@ -14,10 +14,11 @@ from src.schemas.chat import (
     ChatSessionCreate,
     ChatSessionResponse,
 )
-from src.services.opensearch.client import get_os_client
 from src.services.rag.pipeline import run_rag_pipeline
 
 logger = logging.getLogger(__name__)
+
+SESSION_NOT_FOUND = "Session not found"
 
 router = APIRouter(
     prefix="/api/v1/projects/{project_id}/chat",
@@ -35,7 +36,12 @@ def _get_project(db, project_id: uuid.UUID, user_id: uuid.UUID) -> Project:
 # ── Sessions ──────────────────────────────────────────────────────────
 
 
-@router.post("/sessions", response_model=ChatSessionResponse, status_code=201)
+@router.post(
+    "/sessions",
+    response_model=ChatSessionResponse,
+    status_code=201,
+    responses={404: {"description": "Project not found"}},
+)
 async def create_session(
     project_id: uuid.UUID,
     body: ChatSessionCreate,
@@ -48,7 +54,11 @@ async def create_session(
     return session
 
 
-@router.delete("/sessions/{session_id}", status_code=204)
+@router.delete(
+    "/sessions/{session_id}",
+    status_code=204,
+    responses={404: {"description": SESSION_NOT_FOUND}},
+)
 async def delete_session(
     project_id: uuid.UUID,
     session_id: uuid.UUID,
@@ -59,7 +69,7 @@ async def delete_session(
     _get_project(db, project_id, current_user.id)
     session = chat_repo.get_session(db, session_id)
     if not session or session.project_id != project_id:
-        raise HTTPException(status_code=404, detail="Session not found")
+        raise HTTPException(status_code=404, detail=SESSION_NOT_FOUND)
     chat_repo.delete_session(db, session)
 
 
@@ -80,24 +90,29 @@ async def list_sessions(
 @router.get(
     "/sessions/{session_id}/messages",
     response_model=list[ChatMessageResponse],
+    responses={404: {"description": SESSION_NOT_FOUND}},
 )
 async def list_messages(
     project_id: uuid.UUID,
     session_id: uuid.UUID,
     db: DbSession,
     current_user: CurrentUser,
-    limit: int = Query(50, ge=1, le=200),
-    offset: int = Query(0, ge=0),
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
 ):
     """List messages in a chat session (paginated, chronological)."""
     _get_project(db, project_id, current_user.id)
     session = chat_repo.get_session(db, session_id)
     if not session or session.project_id != project_id:
-        raise HTTPException(status_code=404, detail="Session not found")
+        raise HTTPException(status_code=404, detail=SESSION_NOT_FOUND)
     return chat_repo.list_messages(db, session_id, limit, offset)
 
 
-@router.delete("/sessions/{session_id}/messages/{message_id}", status_code=204)
+@router.delete(
+    "/sessions/{session_id}/messages/{message_id}",
+    status_code=204,
+    responses={404: {"description": "Session or message not found"}},
+)
 async def delete_message(
     project_id: uuid.UUID,
     session_id: uuid.UUID,
@@ -109,27 +124,30 @@ async def delete_message(
     _get_project(db, project_id, current_user.id)
     session = chat_repo.get_session(db, session_id)
     if not session or session.project_id != project_id:
-        raise HTTPException(status_code=404, detail="Session not found")
+        raise HTTPException(status_code=404, detail=SESSION_NOT_FOUND)
     message = chat_repo.get_message(db, message_id)
     if not message or message.session_id != session_id:
         raise HTTPException(status_code=404, detail="Message not found")
     chat_repo.delete_message(db, message)
 
 
-@router.post("/sessions/{session_id}/messages")
+@router.post(
+    "/sessions/{session_id}/messages",
+    responses={404: {"description": SESSION_NOT_FOUND}},
+)
 async def send_message(
     project_id: uuid.UUID,
     session_id: uuid.UUID,
     body: ChatMessageCreate,
     db: DbSession,
     current_user: CurrentUser,
-    os_client: OpenSearch = Depends(get_os_client),
+    os_client: OsClient,
 ):
     """Send a message and stream the AI response via SSE."""
     project = _get_project(db, project_id, current_user.id)
     session = chat_repo.get_session(db, session_id)
     if not session or session.project_id != project_id:
-        raise HTTPException(status_code=404, detail="Session not found")
+        raise HTTPException(status_code=404, detail=SESSION_NOT_FOUND)
 
     # Auto-set session title from first message
     if not session.title:

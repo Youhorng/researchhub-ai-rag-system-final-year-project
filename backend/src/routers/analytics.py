@@ -1,12 +1,11 @@
 import logging
 from collections import Counter
-from typing import Optional
-from datetime import datetime, timedelta
-from fastapi import APIRouter, Depends, Query, HTTPException
-from sqlalchemy import select, func, distinct, desc
+from typing import Annotated, Optional
+from datetime import datetime, timedelta, timezone
+from fastapi import APIRouter, Query
+from sqlalchemy import select, func, desc
 from pydantic import BaseModel
 
-from src.database import get_db
 from src.dependencies import CurrentUser, DbSession
 from src.models.project import Project
 from src.models.document import Document
@@ -82,10 +81,10 @@ async def get_analytics_overview(
 async def get_papers_over_time(
     db: DbSession,
     current_user: CurrentUser,
-    days: int = Query(30, description="Number of days to look back"),
+    days: Annotated[int, Query(ge=1, le=365, description="Number of days to look back")] = 30,
 ):
     """Get papers accepted over time for the user."""
-    cutoff_date = datetime.utcnow() - timedelta(days=days)
+    cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
     
     # Query timestamps directly and group by day in Python to avoid timezone complexities in db engines
     results = db.execute(
@@ -118,10 +117,10 @@ async def get_papers_over_time(
 async def get_chat_activity(
     db: DbSession,
     current_user: CurrentUser,
-    days: int = Query(30, description="Number of days to look back"),
+    days: Annotated[int, Query(ge=1, le=365, description="Number of days to look back")] = 30,
 ):
     """Get chat sessions created over time for the user."""
-    cutoff_date = datetime.utcnow() - timedelta(days=days)
+    cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
     
     results = db.execute(
         select(ChatSession.created_at)
@@ -149,7 +148,7 @@ async def get_chat_activity(
 async def get_papers_by_category(
     db: DbSession,
     current_user: CurrentUser,
-    limit: int = Query(10, description="Top N categories"),
+    limit: Annotated[int, Query(description="Top N categories")] = 10,
 ):
     """Get top paper categories among accepted papers."""
     results = db.execute(
@@ -172,7 +171,7 @@ async def get_papers_by_category(
 async def get_papers_by_project(
     db: DbSession,
     current_user: CurrentUser,
-    limit: int = Query(10, description="Top N projects"),
+    limit: Annotated[int, Query(description="Top N projects")] = 10,
 ):
     """Get paper counts grouped by project."""
     # We can query projects directly, ordering by paper_count
