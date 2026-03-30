@@ -258,7 +258,7 @@ export default function TopicsPage() {
       </div>
 
       {/* Topics List */}
-      {topicsContent}      )}
+      {topicsContent}
 
       {/* Topic Modal (Create / Edit) */}
       {projectId && (
