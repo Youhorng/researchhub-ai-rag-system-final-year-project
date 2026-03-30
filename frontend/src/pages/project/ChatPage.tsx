@@ -334,13 +334,13 @@ export default function ChatPage() {
     }
   };
 
-  // Deduplicate citations by title (groups chunks from the same paper)
+  // Deduplicate citations by paper/document identity, preserving backend indices
   const deduplicateCitations = (citations: CitedSource[]): CitedSource[] => {
     const seen = new Map<string, CitedSource>();
     for (const source of citations) {
       const key = source.paper_id || source.document_id || source.arxiv_id || source.title || '';
       if (key && seen.has(key)) continue;
-      seen.set(key || `_${seen.size}`, { ...source, index: seen.size + 1 });
+      seen.set(key || `_${seen.size}`, source);
     }
     return Array.from(seen.values());
   };

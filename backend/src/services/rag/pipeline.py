@@ -15,7 +15,6 @@ Flow:
 
 import json
 import logging
-import re
 import time
 import uuid
 from collections.abc import AsyncGenerator
@@ -46,53 +45,6 @@ def _sse(event_type: str, data: dict) -> str:
     """Return JSON payload for EventSourceResponse (it handles SSE framing)."""
     payload = {"type": event_type, **data}
     return json.dumps(payload)
-
-
-def _source_key(chunk: dict) -> str:
-    """Return a dedup key for a chunk — group by paper or document."""
-    paper_id = chunk.get("paper_id", "")
-    document_id = chunk.get("document_id", "")
-    arxiv_id = chunk.get("arxiv_id", "")
-    return paper_id or document_id or arxiv_id or ""
-
-
-def _extract_citations(text: str, chunks: list[dict]) -> tuple[str, list[dict]]:
-    """Extract [N] markers, group by paper/document, renumber sequentially."""
-    original_indices = sorted({int(m) for m in re.findall(r"\[(\d+)\]", text)})
-
-    seen_sources: dict[str, int] = {}
-    sources: list[dict] = []
-    remap: dict[int, int] = {}
-
-    for idx in original_indices:
-        if not (1 <= idx <= len(chunks)):
-            continue
-
-        chunk = chunks[idx - 1]
-        key = _source_key(chunk)
-
-        if key and key in seen_sources:
-            remap[idx] = seen_sources[key]
-        else:
-            new_idx = len(sources) + 1
-            if key:
-                seen_sources[key] = new_idx
-            remap[idx] = new_idx
-            sources.append({
-                "index": new_idx,
-                "paper_id": chunk.get("paper_id"),
-                "document_id": chunk.get("document_id"),
-                "arxiv_id": chunk.get("arxiv_id"),
-                "title": chunk.get("title"),
-            })
-
-    renumbered_text = text
-    for old_idx in sorted(remap, reverse=True):
-        renumbered_text = renumbered_text.replace(f"[{old_idx}]", f"[{remap[old_idx]}]")
-
-    renumbered_text = re.sub(r"(\[\d+\])(?:[,\s]*\1)+", r"\1", renumbered_text)
-
-    return renumbered_text, sources
 
 
 def _build_chat_messages(
@@ -256,14 +208,13 @@ async def run_rag_pipeline(
             model=settings.openai_chat_model,
             input=messages,
         )
-        full_response, input_tokens, output_tokens, gen_ms, stream_chunks = await _stream_openai(messages, gen_span)
-        for chunk_sse in stream_chunks:
-            yield chunk_sse
+        full_response, input_tokens, output_tokens, gen_ms, _ = await _stream_openai(messages, gen_span)
 
-        # 7. Build cited sources and renumber
+        # 7. Renumber citations before sending to frontend so text and panel indices match
         cited_sources, renumbered_text = _build_cited_sources(grouped_sources, full_response)
 
-        # 8. Yield citations + done
+        # 8. Yield renumbered text + citations + done
+        yield _sse("chunk", {"content": renumbered_text})
         if cited_sources:
             yield _sse("citations", {"sources": cited_sources})
         yield _sse("done", {})
