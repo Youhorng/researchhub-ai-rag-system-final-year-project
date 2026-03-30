@@ -55,6 +55,28 @@ interface ChunkHit {
 
 type Tab = 'papers' | 'documents' | 'search';
 
+async function uploadSingleFile(
+  apiUrl: string,
+  projectId: string,
+  token: string,
+  file: File
+): Promise<Document | null> {
+  const formData = new FormData();
+  formData.append('file', file);
+  try {
+    const res = await fetch(`${apiUrl}/projects/${projectId}/documents`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` },
+      body: formData
+    });
+    if (res.ok) return await res.json() as Document;
+    return null;
+  } catch (err) {
+    console.error('Failed to upload', file.name, err);
+    return null;
+  }
+}
+
 export default function KnowledgeBasePage() {
   const { project } = useOutletContext<{ project: any }>();
   const { projectId } = useParams<{ projectId: string }>();
@@ -242,21 +264,8 @@ export default function KnowledgeBasePage() {
     setIsUploading(true);
     const token = await getToken();
     for (const file of Array.from(files)) {
-      const formData = new FormData();
-      formData.append('file', file);
-      try {
-        const res = await fetch(`${apiUrl}/projects/${projectId}/documents`, {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${token}` },
-          body: formData
-        });
-        if (res.ok) {
-          const doc = await res.json();
-          setDocuments(prev => [doc, ...prev]);
-        }
-      } catch (err) {
-        console.error('Failed to upload', file.name, err);
-      }
+      const doc = await uploadSingleFile(apiUrl, projectId!, token, file);
+      if (doc) setDocuments(prev => [doc, ...prev]);
     }
     setIsUploading(false);
     e.target.value = '';

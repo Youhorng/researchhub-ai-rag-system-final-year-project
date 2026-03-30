@@ -28,15 +28,13 @@ RUN apt-get update && \
 
 # Install Airflow with PostgreSQL support using the official constraint URL
 # The constraint file pins all transitive deps to known-compatible versions
+# requirements.txt mirrors backend/pyproject.toml so DAGs can import backend code
+COPY requirements.txt /tmp/requirements-airflow.txt
 RUN pip install --no-cache-dir \
     "apache-airflow[postgres]==${AIRFLOW_VERSION}" \
     --constraint "${CONSTRAINT_URL}" \
-    psycopg2-binary
-
-# Copy requirements, install project dependencies, and verify airflow is on PATH
-# requirements.txt mirrors backend/pyproject.toml so DAGs can import backend code
-COPY requirements.txt /tmp/requirements-airflow.txt
-RUN pip install --no-cache-dir -r /tmp/requirements-airflow.txt && \
+    psycopg2-binary && \
+    pip install --no-cache-dir -r /tmp/requirements-airflow.txt && \
     which airflow && airflow version
 
 # Copy and set up entrypoint script

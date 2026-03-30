@@ -378,9 +378,8 @@ export default function NewProjectModal({ isOpen, onClose }: NewProjectModalProp
           </div>
 
           <div className={`grid grid-cols-1 md:grid-cols-2 gap-4 transition-all duration-300 ${isCategoryDropdownOpen ? 'pb-48' : 'pb-0'}`}>
-            <div 
-              className="relative" 
-              tabIndex={-1} 
+            <div
+              className="relative"
               onBlur={(e) => {
                 if (!e.currentTarget.contains(e.relatedTarget)) {
                   setIsCategoryDropdownOpen(false);

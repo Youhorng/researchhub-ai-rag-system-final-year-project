@@ -253,7 +253,6 @@ export default function SettingsPage() {
         {/* Categories */}
         <div
           className="relative"
-          tabIndex={-1}
           onBlur={(e) => {
             if (!e.currentTarget.contains(e.relatedTarget)) {
               setIsCategoryDropdownOpen(false);

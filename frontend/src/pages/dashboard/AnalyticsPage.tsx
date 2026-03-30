@@ -156,7 +156,6 @@ export default function AnalyticsPage() {
         
         <div
           className="relative"
-          tabIndex={-1}
           onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setIsTimeOpen(false); }}
         >
           <button
@@ -187,16 +186,18 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      {isLoading ? (
+      {isLoading && (
         <div className="flex-1 flex flex-col items-center justify-center">
           <Loader2 className="animate-spin text-primary mb-4" size={32} />
           <p className="text-zinc-400 text-sm">Aggregating analytics...</p>
         </div>
-      ) : error ? (
+      )}
+      {!isLoading && error && (
         <div className="p-4 bg-red-500/10 text-red-500 border border-red-500/20 rounded-xl text-sm flex justify-center">
           {error}
         </div>
-      ) : overview && (
+      )}
+      {!isLoading && !error && overview && (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
              <StatCard 

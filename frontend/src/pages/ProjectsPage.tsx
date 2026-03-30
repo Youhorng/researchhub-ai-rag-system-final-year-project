@@ -13,6 +13,18 @@ interface Project {
   created_at: string;
 }
 
+function getArchiveIcon(isArchiving: string | null, project: Project): React.ReactNode {
+  if (isArchiving === project.id) return <Loader2 size={18} className="animate-spin" />;
+  if (project.status === 'archived') return <ArchiveRestore size={18} />;
+  return <Archive size={18} />;
+}
+
+function getEmptyMessage(searchQuery: string, statusFilter: 'active' | 'archived'): string {
+  if (searchQuery) return `We couldn't find any projects matching "${searchQuery}".`;
+  if (statusFilter === 'archived') return 'Projects you archive will appear here. You can archive a project from its settings page.';
+  return 'Get started by creating a new research project from the sidebar.';
+}
+
 export default function ProjectsPage() {
   const { getToken } = useAuth();
   const navigate = useNavigate();
@@ -125,14 +137,7 @@ export default function ProjectsPage() {
     const emptyIcon = statusFilter === 'archived'
       ? <Archive className="text-zinc-600 mb-4" size={48} />
       : <Folder className="text-zinc-600 mb-4" size={48} />;
-    let emptyMessage: string;
-    if (searchQuery) {
-      emptyMessage = `We couldn't find any projects matching "${searchQuery}".`;
-    } else if (statusFilter === 'archived') {
-      emptyMessage = 'Projects you archive will appear here. You can archive a project from its settings page.';
-    } else {
-      emptyMessage = 'Get started by creating a new research project from the sidebar.';
-    }
+    const emptyMessage = getEmptyMessage(searchQuery, statusFilter);
     mainContent = (
       <div className="flex-1 flex flex-col items-center justify-center text-center p-8 border-2 border-dashed border-[#161f33] rounded-2xl bg-surface_container/50">
         {emptyIcon}
@@ -146,14 +151,7 @@ export default function ProjectsPage() {
     mainContent = (
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 auto-rows-max">
         {filteredProjects.map((project) => {
-          let archiveIcon: React.ReactNode;
-          if (isArchiving === project.id) {
-            archiveIcon = <Loader2 size={18} className="animate-spin" />;
-          } else if (project.status === 'archived') {
-            archiveIcon = <ArchiveRestore size={18} />;
-          } else {
-            archiveIcon = <Archive size={18} />;
-          }
+          const archiveIcon = getArchiveIcon(isArchiving, project);
           return (
             <div
               key={project.id}

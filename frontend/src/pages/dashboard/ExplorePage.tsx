@@ -286,7 +286,6 @@ export default function ExplorePage() {
         {/* Category searchable multiselect */}
         <div
           className="relative w-full sm:w-64"
-          tabIndex={-1}
           onBlur={(e) => {
             if (!e.currentTarget.contains(e.relatedTarget)) {
               setIsCategoryDropdownOpen(false);

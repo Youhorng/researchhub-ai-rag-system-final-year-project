@@ -38,6 +38,11 @@ interface NewTopicModalProps {
   readonly editTopic?: EditTopic | null;
 }
 
+function getSaveLabel(isEditMode: boolean, isSaving: boolean): string {
+  if (isSaving) return isEditMode ? 'Saving...' : 'Creating...';
+  return isEditMode ? 'Save & Find Papers' : 'Create Topic & Find Papers';
+}
+
 function toggleSetItem<T>(set: Set<T>, item: T): Set<T> {
   const next = new Set(set);
   if (next.has(item)) next.delete(item);
@@ -271,18 +276,12 @@ export default function NewTopicModal({ isOpen, onClose, projectId, onTopicCreat
     headerTitle = 'Review Discovered Papers';
   }
 
-  let saveButtonLabel: string;
-  if (isEditMode) {
-    saveButtonLabel = isSaving ? 'Saving...' : 'Save & Find Papers';
-  } else {
-    saveButtonLabel = isSaving ? 'Creating...' : 'Create Topic & Find Papers';
-  }
+  const saveButtonLabel = getSaveLabel(isEditMode, isSaving);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
       <div
         className="w-full max-w-2xl bg-surface_container border border-[#161f33] rounded-2xl shadow-2xl my-8 mx-auto flex flex-col max-h-[90vh]"
-        onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="relative flex items-center justify-center p-5 border-b border-[#161f33] flex-shrink-0">
@@ -380,7 +379,6 @@ export default function NewTopicModal({ isOpen, onClose, projectId, onTopicCreat
               <div className={`grid grid-cols-1 md:grid-cols-2 gap-4 transition-all duration-300 ${isCategoryDropdownOpen ? 'pb-48' : 'pb-0'}`}>
                 <div
                   className="relative"
-                  tabIndex={-1}
                   onBlur={(e) => {
                     if (!e.currentTarget.contains(e.relatedTarget)) {
                       setIsCategoryDropdownOpen(false);

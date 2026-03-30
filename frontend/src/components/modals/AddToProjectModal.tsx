@@ -154,7 +154,6 @@ export default function AddToProjectModal({ paper, onClose }: AddToProjectModalP
             <label htmlFor="project-select" className="block text-xs font-medium text-zinc-400 mb-1.5">Select Project</label>
             <div
               className="relative"
-              tabIndex={-1}
               onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setIsProjectOpen(false); }}
             >
               <button
@@ -199,7 +198,6 @@ export default function AddToProjectModal({ paper, onClose }: AddToProjectModalP
               </label>
               <div
                 className="relative"
-                tabIndex={-1}
                 onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setIsTopicOpen(false); }}
               >
                 <button

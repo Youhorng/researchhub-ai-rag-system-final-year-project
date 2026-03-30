@@ -40,7 +40,7 @@ class Settings(BaseSettings):
 
     # App
     debug: bool = False
-    environment: str = "development"    # ENVIRONMENT=development|production
+    environment: str = "development"
     app_name: str = "ResearchHub API"
 
     # Accept the full pre-built URL directly (preferred in Docker).
