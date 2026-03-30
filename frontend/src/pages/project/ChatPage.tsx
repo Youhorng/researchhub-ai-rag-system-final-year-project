@@ -35,7 +35,7 @@ interface ChatMessage {
 // Preprocess markdown to fix broken numbered lists
 // Handles: "1.\n**Bold:**", "1. \n**Bold:**", "1.\n\n**Bold:**"
 const preprocessMarkdown = (content: string) =>
-  content.replaceAll(/(\d+)\.\s*\n+\s*\*\*/g, '$1. **');
+  content.replaceAll(/(\d+)\.[^\S\n]*\n+[^\S\n]*\*\*/g, '$1. **');
 
 // Render markdown content (module-level to avoid re-creation on each render)
 const renderMarkdown = (content: string) => (
