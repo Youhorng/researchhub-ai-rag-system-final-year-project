@@ -263,6 +263,7 @@ export default function KnowledgeBasePage() {
     if (!files || files.length === 0) return;
     setIsUploading(true);
     const token = await getToken();
+    if (!token) { setIsUploading(false); return; }
     for (const file of Array.from(files)) {
       const doc = await uploadSingleFile(apiUrl, projectId!, token, file);
       if (doc) setDocuments(prev => [doc, ...prev]);
