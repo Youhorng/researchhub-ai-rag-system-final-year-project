@@ -38,6 +38,13 @@ interface NewTopicModalProps {
   readonly editTopic?: EditTopic | null;
 }
 
+function toggleSetItem<T>(set: Set<T>, item: T): Set<T> {
+  const next = new Set(set);
+  if (next.has(item)) next.delete(item);
+  else next.add(item);
+  return next;
+}
+
 export default function NewTopicModal({ isOpen, onClose, projectId, onTopicCreated, onTopicUpdated, editTopic }: NewTopicModalProps) {
   const { getToken } = useAuth();
   const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
@@ -140,12 +147,7 @@ export default function NewTopicModal({ isOpen, onClose, projectId, onTopicCreat
     }
   };
 
-  const toggleKeyword = (kw: string) => {
-    const newSet = new Set(selectedKeywords);
-    if (newSet.has(kw)) newSet.delete(kw);
-    else newSet.add(kw);
-    setSelectedKeywords(newSet);
-  };
+  const toggleKeyword = (kw: string) => setSelectedKeywords(prev => toggleSetItem(prev, kw));
 
   const handleAddCustomKeyword = () => {
     const kw = customKeyword.trim();
@@ -156,12 +158,7 @@ export default function NewTopicModal({ isOpen, onClose, projectId, onTopicCreat
     }
   };
 
-  const toggleCategory = (catId: string) => {
-    const newSet = new Set(selectedCategories);
-    if (newSet.has(catId)) newSet.delete(catId);
-    else newSet.add(catId);
-    setSelectedCategories(newSet);
-  };
+  const toggleCategory = (catId: string) => setSelectedCategories(prev => toggleSetItem(prev, catId));
 
   const handleSaveTopic = async () => {
     if (!topicName.trim()) {

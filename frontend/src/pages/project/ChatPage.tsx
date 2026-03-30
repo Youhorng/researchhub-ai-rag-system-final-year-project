@@ -73,6 +73,22 @@ const renderMarkdown = (content: string) => (
   </ReactMarkdown>
 );
 
+function processSSELine(
+  line: string,
+  onChunk: (content: string) => void,
+  onCitations: (sources: CitedSource[]) => void
+): void {
+  if (!line.startsWith('data: ')) return;
+  const jsonStr = line.slice(6).trim();
+  if (!jsonStr) return;
+  try {
+    const event = JSON.parse(jsonStr) as { type: string; content?: string; sources?: CitedSource[]; message?: string };
+    if (event.type === 'chunk') onChunk(event.content ?? '');
+    else if (event.type === 'citations') onCitations(event.sources ?? []);
+    else if (event.type === 'error') { console.error('SSE error:', event.message); onChunk(`\n\n*Error: ${event.message}*`); }
+  } catch { /* ignore parse errors */ }
+}
+
 export default function ChatPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const { getToken } = useAuth();
@@ -227,26 +243,11 @@ export default function ChatPage() {
       buffer = lines.pop() || '';
 
       for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
-        const jsonStr = line.slice(6).trim();
-        if (!jsonStr) continue;
-
-        try {
-          const event = JSON.parse(jsonStr);
-          if (event.type === 'chunk') {
-            fullContent += event.content;
-            setStreamingContent(fullContent);
-          } else if (event.type === 'citations') {
-            citations = event.sources || [];
-            setStreamingCitations(citations);
-          } else if (event.type === 'error') {
-            console.error('SSE error:', event.message);
-            fullContent += `\n\n*Error: ${event.message}*`;
-            setStreamingContent(fullContent);
-          }
-        } catch {
-          // ignore parse errors
-        }
+        processSSELine(
+          line,
+          (content) => { fullContent += content; setStreamingContent(fullContent); },
+          (sources) => { citations = sources; setStreamingCitations(sources); }
+        );
       }
     }
 

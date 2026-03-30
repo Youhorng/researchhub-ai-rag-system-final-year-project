@@ -121,6 +121,11 @@ export default function AddToProjectModal({ paper, onClose }: AddToProjectModalP
   if (success) submitLabel = <><Check size={16} /> Added!</>;
   else if (isSubmitting) submitLabel = <><Loader2 size={16} className="animate-spin" /> Adding…</>;
 
+  let topicLabel: string;
+  if (isLoadingTopics) topicLabel = 'Loading topics…';
+  else if (topics.length === 0) topicLabel = 'No topics in this project';
+  else topicLabel = selectedTopic?.name ?? 'None (add to project only)';
+
   if (!paper) return null;
 
   return (
@@ -148,7 +153,6 @@ export default function AddToProjectModal({ paper, onClose }: AddToProjectModalP
           <div>
             <label htmlFor="project-select" className="block text-xs font-medium text-zinc-400 mb-1.5">Select Project</label>
             <div
-              role="group"
               className="relative"
               tabIndex={-1}
               onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setIsProjectOpen(false); }}
@@ -194,7 +198,6 @@ export default function AddToProjectModal({ paper, onClose }: AddToProjectModalP
                 <Tag size={11} /> Add to Topic <span className="text-zinc-600">(optional)</span>
               </label>
               <div
-                role="group"
                 className="relative"
                 tabIndex={-1}
                 onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setIsTopicOpen(false); }}
@@ -207,7 +210,7 @@ export default function AddToProjectModal({ paper, onClose }: AddToProjectModalP
                   className="w-full min-h-[42px] bg-surface_container_high border border-[#161f33] rounded-xl pl-4 pr-9 py-2 text-sm flex items-center justify-between gap-2 transition-colors focus:outline-none focus:border-zinc-500 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <span className={selectedTopic ? 'text-white' : 'text-zinc-500'}>
-                    {isLoadingTopics ? 'Loading topics…' : topics.length === 0 ? 'No topics in this project' : (selectedTopic?.name ?? 'None (add to project only)')}
+                    {topicLabel}
                   </span>
                   {isLoadingTopics ? <Loader2 size={14} className="animate-spin text-zinc-500 flex-shrink-0" /> : <ChevronDown size={14} className="text-zinc-500 flex-shrink-0" />}
                 </button>

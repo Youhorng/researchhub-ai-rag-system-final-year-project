@@ -268,6 +268,24 @@ def _download_and_index(db_conn, http: httpx.Client, os_client, headers: dict, b
     logger.info(f"Finished indexing batch {batch_id}")
 
 
+def _handle_batch_result(result: dict, batch_id: str, db_conn, http, os_client, headers) -> bool:
+    """Process a polled batch result. Returns True if the outer loop should break."""
+    if result["status"] == "completed":
+        # Step 4: Download & index — then loop back to step 1
+        _download_and_index(db_conn, http, os_client, headers, batch_id, result["output_file_id"])
+        return False
+    if result["status"] == "timeout":
+        # Leave batch_id intact so next run re-polls
+        logger.warning(f"Batch {batch_id} timed out. Will resume next run.")
+        return True
+    # failed / expired / cancelled
+    logger.warning(
+        f"Batch {batch_id} ended with status={result['status']}: {result.get('error', '')}"
+    )
+    _reset_batch(db_conn, batch_id)
+    return True
+
+
 # ── DAG definition ─────────────────────────────────────────────────────
 @dag(
     dag_id="arxiv_bulk_load_batch",
@@ -309,26 +327,8 @@ def arxiv_bulk_load_batch_dag():
                 # ── Step 3: Poll until terminal ────────────────────────
                 result = _poll_batch(http, headers, batch_id)
 
-                if result["status"] == "completed":
-                    # ── Step 4: Download & index ───────────────────────
-                    _download_and_index(
-                        db_conn, http, os_client, headers,
-                        batch_id, result["output_file_id"],
-                    )
-                    # Loop back to step 1
-                    continue
-
-                if result["status"] == "timeout":
-                    # Leave batch_id intact so next run re-polls
-                    logger.warning(f"Batch {batch_id} timed out. Will resume next run.")
+                if _handle_batch_result(result, batch_id, db_conn, http, os_client, headers):
                     break
-
-                # failed / expired / cancelled
-                logger.warning(
-                    f"Batch {batch_id} ended with status={result['status']}: "
-                    f"{result.get('error', '')}"
-                )
-                _reset_batch(db_conn, batch_id)
 
     process_all_batches()
 

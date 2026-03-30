@@ -292,8 +292,8 @@ export default function AnalyticsPage() {
                         dataKey="value"
                         nameKey="name"
                       >
-                        {categoryData.map((_, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        {categoryData.map((entry, index) => (
+                          <Cell key={entry.name} fill={COLORS[index % COLORS.length]} />
                         ))}
                       </Pie>
                       <Tooltip content={<CustomTooltip />} />

@@ -146,7 +146,7 @@ def _fill_missing_sources(
 def make_retrieve_node(os_client: OpenSearch, trace):
     """Factory that returns a retrieve node with access to OpenSearch client and trace."""
 
-    async def retrieve_node(state: AgentState) -> dict:
+    def retrieve_node(state: AgentState) -> dict:
         # Use rewritten query if available, otherwise original
         query_text = state.get("rewritten_query") or state["query"]
 

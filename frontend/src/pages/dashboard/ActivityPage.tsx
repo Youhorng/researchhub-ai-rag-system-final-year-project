@@ -205,7 +205,6 @@ export default function ActivityPage() {
         </div>
         
         <div
-          role="group"
           className="relative"
           tabIndex={-1}
           onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setIsFilterOpen(false); }}

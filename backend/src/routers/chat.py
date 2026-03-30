@@ -73,7 +73,7 @@ async def delete_session(
     chat_repo.delete_session(db, session)
 
 
-@router.get("/sessions", response_model=list[ChatSessionResponse])
+@router.get("/sessions", response_model=list[ChatSessionResponse], responses={404: {"description": "Project not found"}})
 async def list_sessions(
     project_id: uuid.UUID,
     db: DbSession,

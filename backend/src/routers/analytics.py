@@ -105,12 +105,13 @@ async def get_papers_over_time(
             counter[day_str] += 1
             
     # Fill in missing days with zeros for a smooth chart
+    safe_days = max(1, min(int(days), 365))
     data = []
-    for i in range(days):
+    for i in range(safe_days):
         d = cutoff_date + timedelta(days=i)
         day_str = d.strftime("%Y-%m-%d")
         data.append(TimeSeriesDataPoint(date=day_str, count=counter.get(day_str, 0)))
-        
+
     return data
 
 @router.get("/chat-activity", response_model=list[TimeSeriesDataPoint])
@@ -136,12 +137,13 @@ async def get_chat_activity(
             day_str = ts.strftime("%Y-%m-%d")
             counter[day_str] += 1
             
+    safe_days = max(1, min(int(days), 365))
     data = []
-    for i in range(days):
+    for i in range(safe_days):
         d = cutoff_date + timedelta(days=i)
         day_str = d.strftime("%Y-%m-%d")
         data.append(TimeSeriesDataPoint(date=day_str, count=counter.get(day_str, 0)))
-        
+
     return data
 
 @router.get("/papers-by-category", response_model=list[CategoryDataPoint])
