@@ -118,6 +118,7 @@ services:
       - OPENSEARCH_JAVA_OPTS=-Xms1g -Xmx1g
       - DISABLE_SECURITY_PLUGIN=true
       - bootstrap.memory_lock=true
+      - path.repo=/usr/share/opensearch/snapshots
     ports:
       - "9200:9200"
       - "9600:9600"
@@ -127,6 +128,7 @@ services:
         hard: -1
     volumes:
       - opensearch_data:/usr/share/opensearch/data
+      - ./opensearch-snapshots:/usr/share/opensearch/snapshots
     healthcheck:
       test:
         ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
