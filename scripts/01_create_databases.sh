@@ -1,4 +1,3 @@
-#!/bin/bash
 # PostgreSQL initialization script
 # Runs automatically on first container startup (postgres_data volume is empty).
 # Creates both application databases in one PostgreSQL server instance.

@@ -52,6 +52,9 @@ build/
 # Docker
 docker-compose.override.yml
 
+# TLS certificates — never commit private keys
+nginx/certs/
+
 backend/airflow/data
 
 # Ignore claude md
