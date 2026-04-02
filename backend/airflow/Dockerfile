@@ -34,7 +34,9 @@ RUN pip install --no-cache-dir \
     "apache-airflow[postgres]==${AIRFLOW_VERSION}" \
     --constraint "${CONSTRAINT_URL}" \
     psycopg2-binary && \
-    pip install --no-cache-dir -r /tmp/requirements-airflow.txt && \
+    pip install --no-cache-dir \
+    -r /tmp/requirements-airflow.txt \
+    --constraint "${CONSTRAINT_URL}" && \
     which airflow && airflow version
 
 # Copy and set up entrypoint script
