@@ -29,11 +29,20 @@ cd "$REPO_DIR"
 # Reads the image tag from the currently running api container
 # Stored in a file so rollback() can restore it even after git pull changes things
 # ---------------------------------------------------------------------------
-ROLLBACK_TAG=$(docker inspect researchhub-api --format='{{index .Config.Image}}' 2>/dev/null | cut -d: -f2 || echo "latest")
-echo "--- Current running tag: $ROLLBACK_TAG ---"
+ROLLBACK_TAG=$(docker inspect researchhub-api --format='{{index .Config.Image}}' 2>/dev/null | cut -d: -f2 || true)
+if [ -z "$ROLLBACK_TAG" ]; then
+    echo "--- No previous container found (first deploy) — rollback disabled ---"
+else
+    echo "--- Current running tag: $ROLLBACK_TAG ---"
+fi
 
 rollback() {
-    echo "!!! Deploy failed — rolling back to $ROLLBACK_TAG !!!"
+    echo "!!! Deploy failed !!!"
+    if [ -z "$ROLLBACK_TAG" ]; then
+        echo "!!! First deploy — no previous version to roll back to !!!"
+        exit 1
+    fi
+    echo "!!! Rolling back to $ROLLBACK_TAG !!!"
     export IMAGE_TAG="$ROLLBACK_TAG"
     $COMPOSE_CMD pull api frontend airflow
     $COMPOSE_CMD up -d --remove-orphans

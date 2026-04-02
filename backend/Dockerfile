@@ -26,8 +26,10 @@ FROM python:3.12.8-slim AS runner
 
 WORKDIR /app
 
-# Install system libraries required by PyMuPDF
+# Upgrade all OS packages to patch known CVEs in the base image
+# then install system libraries required by PyMuPDF
 RUN apt-get update && \
+    apt-get upgrade -y && \
     apt-get install -y --no-install-recommends \
         libmupdf-dev && \
     rm -rf /var/lib/apt/lists/*
