@@ -42,9 +42,11 @@ def _stamp_batch_id(db_conn, arxiv_ids: list[str], batch_id: str):
     for i in range(0, len(arxiv_ids), 500):
         chunk = arxiv_ids[i : i + 500]
         placeholders = ", ".join(f":id_{j}" for j in range(len(chunk)))
-        sql = text(
+        sql = text(  # nosemgrep: python.sqlalchemy.security.audit.avoid-sqlalchemy-text.avoid-sqlalchemy-text
             f"UPDATE papers SET openai_batch_id = :batch_id "
             f"WHERE arxiv_id IN ({placeholders})"
+            # Safe: f-string only interpolates named parameter placeholders (:id_0, :id_1, ...)
+            # Actual values are passed separately via params dict — fully parameterized
         )
         params = {f"id_{j}": aid for j, aid in enumerate(chunk)}
         params["batch_id"] = batch_id
@@ -187,9 +189,11 @@ def _index_chunk_to_opensearch(
     for i in range(0, len(arxiv_ids), OPENSEARCH_BULK_CHUNK):
         chunk_ids = arxiv_ids[i : i + OPENSEARCH_BULK_CHUNK]
         placeholders = ", ".join(f":id_{j}" for j in range(len(chunk_ids)))
-        query = text(
+        query = text(  # nosemgrep: python.sqlalchemy.security.audit.avoid-sqlalchemy-text.avoid-sqlalchemy-text
             f"SELECT arxiv_id, title, abstract, categories, published_at "
             f"FROM papers WHERE arxiv_id IN ({placeholders})"
+            # Safe: f-string only interpolates named parameter placeholders (:id_0, :id_1, ...)
+            # Actual values are passed separately via params dict — fully parameterized
         )
         params = {f"id_{j}": aid for j, aid in enumerate(chunk_ids)}
         rows = db_conn.execute(query, params).fetchall()
@@ -217,10 +221,12 @@ def _index_chunk_to_opensearch(
 
         if indexed_ids:
             ph = ", ".join(f":id_{k}" for k in range(len(indexed_ids)))
-            update_sql = text(
+            update_sql = text(  # nosemgrep: python.sqlalchemy.security.audit.avoid-sqlalchemy-text.avoid-sqlalchemy-text
                 f"UPDATE papers SET metadata_indexed = true, "
                 f"metadata_indexed_at = :indexed_at, openai_batch_id = NULL "
                 f"WHERE arxiv_id IN ({ph})"
+                # Safe: f-string only interpolates named parameter placeholders (:id_0, :id_1, ...)
+                # Actual values are passed separately via params dict — fully parameterized
             )
             up = {f"id_{k}": aid for k, aid in enumerate(indexed_ids)}
             up["indexed_at"] = datetime.now(timezone.utc)

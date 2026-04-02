@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     debug: bool = False
     environment: str = "development"
     app_name: str = "ResearchHub API"
+    cors_origins: list[str] = ["http://localhost:3000", "http://localhost:5173"]
 
     # Accept the full pre-built URL directly (preferred in Docker).
     # This maps to POSTGRES_DATABASE_URL in your .env.
