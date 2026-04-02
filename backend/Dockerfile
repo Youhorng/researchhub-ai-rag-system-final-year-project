@@ -16,9 +16,6 @@ COPY pyproject.toml uv.lock ./
 # Install dependencies into a virtual environment
 # --frozen: strict sync from uv.lock
 # --no-dev: production dependencies only
-# PIP_EXTRA_INDEX_URL forces CPU-only torch — docling pulls torch as a transitive
-# dependency but the droplet has no GPU. CPU build is ~2GB lighter than CUDA build.
-ENV PIP_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cpu
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=/app/uv.lock \
     --mount=type=bind,source=pyproject.toml,target=/app/pyproject.toml \
