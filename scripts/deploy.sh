@@ -79,9 +79,12 @@ $COMPOSE_CMD up -d --remove-orphans
 
 # ---------------------------------------------------------------------------
 # Step 5: Wait for PostgreSQL to be ready before running migrations
+# pg_isready needs no -U flag — it checks network connectivity only.
+# POSTGRES_USER is not exported to the deploy shell (it lives in .env for
+# docker compose variable substitution), so we omit it here.
 # ---------------------------------------------------------------------------
 echo "--- Waiting for PostgreSQL ---"
-timeout 60 bash -c "until $COMPOSE_CMD exec -T postgres pg_isready -U \${POSTGRES_USER} 2>/dev/null; do sleep 2; done"
+timeout 120 bash -c "until $COMPOSE_CMD exec -T postgres pg_isready 2>/dev/null; do sleep 3; done"
 
 # ---------------------------------------------------------------------------
 # Step 6: Run Alembic migrations
