@@ -6,9 +6,9 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  API_IMAGE:      ghcr.io/${{ github.repository }}/api
-  FRONTEND_IMAGE: ghcr.io/${{ github.repository }}/frontend
-  AIRFLOW_IMAGE:  ghcr.io/${{ github.repository }}/airflow
+  API_IMAGE:      ghcr.io/youhorng/researchhub-ai-rag-system-final-year-project/api
+  FRONTEND_IMAGE: ghcr.io/youhorng/researchhub-ai-rag-system-final-year-project/frontend
+  AIRFLOW_IMAGE:  ghcr.io/youhorng/researchhub-ai-rag-system-final-year-project/airflow
 
 # ============================================================================
 # JOB 1a — Secret scanning (Gitleaks)
