@@ -28,16 +28,17 @@ RUN apt-get update && \
 
 # Install Airflow with PostgreSQL support using the official constraint URL
 # The constraint file pins all transitive deps to known-compatible versions
-# requirements.txt mirrors backend/pyproject.toml so DAGs can import backend code
 COPY requirements.txt /tmp/requirements-airflow.txt
 RUN pip install --no-cache-dir \
     "apache-airflow[postgres]==${AIRFLOW_VERSION}" \
     --constraint "${CONSTRAINT_URL}" \
-    psycopg2-binary && \
-    pip install --no-cache-dir \
-    -r /tmp/requirements-airflow.txt \
-    --constraint "${CONSTRAINT_URL}" && \
-    which airflow && airflow version
+    psycopg2-binary
+
+# Install DAG dependencies (no constraint — allows pip to upgrade shared deps as needed)
+# httpx is intentionally omitted from requirements.txt; airflow manages it via constraints
+RUN pip install --no-cache-dir -r /tmp/requirements-airflow.txt
+
+RUN which airflow && airflow version
 
 # Copy and set up entrypoint script
 COPY entrypoint.sh /entrypoint.sh
