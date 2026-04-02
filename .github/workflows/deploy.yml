@@ -283,6 +283,8 @@ jobs:
     needs: [push-to-ghcr]
     environment: production
     steps:
+      - uses: actions/checkout@v4
+
       - uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.DROPLET_SSH_KEY }}
@@ -292,6 +294,14 @@ jobs:
           mkdir -p ~/.ssh
           ssh-keyscan -T 60 -H ${{ secrets.DROPLET_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || \
           ssh-keyscan -T 60 -H ${{ secrets.DROPLET_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Sync deploy script before running it
+        # Always push the latest deploy.sh from this commit to the droplet BEFORE
+        # executing it. Without this, the droplet runs whatever version was left
+        # from the previous (possibly failed) deploy, so script fixes never take effect.
+        run: |
+          scp scripts/deploy.sh \
+            ${{ secrets.DROPLET_USER }}@${{ secrets.DROPLET_HOST }}:~/researchhub/scripts/deploy.sh
 
       - name: Deploy to droplet
         env:
