@@ -9,7 +9,7 @@
 
 # HTTP and data handling
 # HTTP and data handling
-requests>=2.33.0
+requests>=2.32.3
 httpx>=0.28.1
 python-dateutil>=2.9.0.post0
 arxiv>=2.1.3

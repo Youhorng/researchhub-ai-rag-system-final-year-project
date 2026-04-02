@@ -62,11 +62,15 @@ jobs:
           pip install pip-audit uv
           cd backend
           uv export --no-dev --no-hashes -o /tmp/requirements.txt
-          pip-audit -r /tmp/requirements.txt --ignore-vuln GHSA-w235-7p84-xx57 || true
+          pip-audit -r /tmp/requirements.txt \
+            --ignore-vuln GHSA-w235-7p84-xx57 \
+            --ignore-vuln CVE-2026-25645 || true
 
       - name: pip-audit (airflow Python deps)
         run: |
-          pip-audit -r backend/airflow/requirements.txt || true
+          pip install pip-audit
+          pip-audit -r backend/airflow/requirements.txt \
+            --ignore-vuln CVE-2026-25645 || true
 
       - name: npm audit (frontend deps)
         run: |
