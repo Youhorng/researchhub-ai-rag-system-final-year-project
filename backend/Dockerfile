@@ -26,10 +26,10 @@ FROM python:3.12.8-slim AS runner
 
 WORKDIR /app
 
-# Install system libraries required by docling/OpenCV for PDF parsing
+# Install system libraries required by PyMuPDF
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        libxcb1 libgl1 libglib2.0-0 && \
+        libmupdf-dev && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy the virtual environment from the builder stage
