@@ -30,6 +30,10 @@ export default function TopicsPage() {
   const { getToken } = useAuth();
   const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
 
+  useEffect(() => {
+    document.title = project ? `Topics — ${project.name} | ResearchHub` : 'Topics | ResearchHub';
+  }, [project]);
+
   const [topics, setTopics] = useState<Topic[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [papers, setPapers] = useState<ProjectPaper[]>([]);

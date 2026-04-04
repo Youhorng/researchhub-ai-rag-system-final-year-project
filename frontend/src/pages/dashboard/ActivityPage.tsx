@@ -30,7 +30,9 @@ const ACTIVITY_MAP: Record<string, { icon: any, color: string, bg: string, label
 
 export default function ActivityPage() {
   const { getToken } = useAuth();
-  
+
+  useEffect(() => { document.title = 'Activity | ResearchHub'; }, []);
+
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');

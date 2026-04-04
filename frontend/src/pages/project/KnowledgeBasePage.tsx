@@ -83,6 +83,10 @@ export default function KnowledgeBasePage() {
   const { getToken } = useAuth();
   const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
 
+  useEffect(() => {
+    document.title = project ? `Knowledge Base — ${project.name} | ResearchHub` : 'Knowledge Base | ResearchHub';
+  }, [project]);
+
   const [activeTab, setActiveTab] = useState<Tab>('papers');
 
   // Papers state

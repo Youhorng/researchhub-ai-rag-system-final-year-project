@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, ExternalLink, FileText, Calendar, Hash, BookOpen } from 'lucide-react';
 
@@ -18,6 +19,10 @@ export default function PaperDetailPage() {
   // Paper data is passed via navigate state from ExplorePage — no re-fetch needed
   const paper: PaperDetail | undefined = location.state?.paper;
   const normalizedArxivId = (arxivId ?? '').replace('_', '/');
+
+  useEffect(() => {
+    document.title = paper ? `${paper.title} | ResearchHub` : 'Paper | ResearchHub';
+  }, [paper]);
 
   if (!paper) {
     return (

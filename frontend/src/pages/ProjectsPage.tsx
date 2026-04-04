@@ -29,6 +29,8 @@ export default function ProjectsPage() {
   const { getToken } = useAuth();
   const navigate = useNavigate();
 
+  useEffect(() => { document.title = 'Projects | ResearchHub'; }, []);
+
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');

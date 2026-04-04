@@ -27,6 +27,8 @@ export default function DashboardPage() {
   const { getToken } = useAuth();
   const navigate = useNavigate();
 
+  useEffect(() => { document.title = 'Dashboard | ResearchHub'; }, []);
+
   const [projects, setProjects] = useState<Project[]>([]);
   const [recentSessions, setRecentSessions] = useState<RecentSession[]>([]);
   const [isLoading, setIsLoading] = useState(true);

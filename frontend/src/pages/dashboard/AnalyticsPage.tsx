@@ -80,7 +80,9 @@ const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
 
 export default function AnalyticsPage() {
   const { getToken } = useAuth();
-  
+
+  useEffect(() => { document.title = 'Analytics | ResearchHub'; }, []);
+
   const [timeRange, setTimeRange] = useState('30');
   const [isTimeOpen, setIsTimeOpen] = useState(false);
 

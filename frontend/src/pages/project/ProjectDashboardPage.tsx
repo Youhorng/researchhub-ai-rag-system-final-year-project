@@ -23,6 +23,10 @@ export default function ProjectDashboardPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const { getToken } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    document.title = project ? `${project.name} | ResearchHub` : 'Project | ResearchHub';
+  }, [project]);
   const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
 
   const [topics, setTopics] = useState<Topic[]>([]);

@@ -44,6 +44,8 @@ export default function ExplorePage() {
   const { getToken } = useAuth();
   const navigate = useNavigate();
 
+  useEffect(() => { document.title = 'Explore | ResearchHub'; }, []);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());

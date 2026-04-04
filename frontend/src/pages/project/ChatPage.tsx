@@ -94,6 +94,8 @@ export default function ChatPage() {
   const { getToken } = useAuth();
   const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
 
+  useEffect(() => { document.title = 'Chat | ResearchHub'; }, []);
+
   // Sessions state
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
