@@ -55,10 +55,7 @@ class _NoOpSpan:
     def update(self, **kwargs):
         return self
 
-    def span(self, **kwargs):
-        return _NoOpSpan()
-
-    def generation(self, **kwargs):
+    def start_observation(self, **kwargs):
         return _NoOpSpan()
 
     def update_trace(self, **kwargs):
@@ -81,12 +78,12 @@ def create_rag_trace(
         return _NoOpSpan()
 
     try:
-        trace = client.trace(
+        trace = client.start_observation(
             name="rag-chat",
             input=user_query,
-            user_id=str(user_id),
-            session_id=str(session_id),
             metadata={
+                "user_id": str(user_id),
+                "session_id": str(session_id),
                 "project_id": str(project_id),
             },
         )

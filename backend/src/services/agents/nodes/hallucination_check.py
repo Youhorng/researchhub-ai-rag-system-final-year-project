@@ -23,7 +23,7 @@ async def check_hallucination(
     Called after streaming completes. Result stored in message metadata.
     Returns: {"is_grounded": bool, "score": float, "reason": str}
     """
-    span = trace.span(name="hallucination_check", input=answer[:200])
+    span = trace.start_observation(name="hallucination_check", as_type="evaluator", input=answer[:200])
     t0 = time.time()
 
     if not answer or not chunks:

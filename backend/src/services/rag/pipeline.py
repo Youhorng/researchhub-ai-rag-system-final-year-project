@@ -203,8 +203,9 @@ async def run_rag_pipeline(
         messages = _build_chat_messages(system_message, history, user_query)
 
         # 6. Stream generation
-        gen_span = trace.generation(
+        gen_span = trace.start_observation(
             name="generate",
+            as_type="generation",
             model=settings.openai_chat_model,
             input=messages,
         )
