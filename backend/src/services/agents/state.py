@@ -13,6 +13,7 @@ class AgentState(TypedDict, total=False):
 
     # Pipeline state
     is_in_scope: bool
+    is_conversational: bool
     rejection_message: str
     query_vector: list[float]
     retrieved_chunks: list[dict]

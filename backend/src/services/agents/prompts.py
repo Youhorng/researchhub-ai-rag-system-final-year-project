@@ -8,24 +8,26 @@ A user is working on a research project:
 
 The user asked: "{query}"
 
-ONLY mark a query as out-of-scope if it is completely unrelated to ANY academic or
-research context — for example:
-- Casual chat with no substance ("hello", "tell me a joke", "how are you")
-- Requests entirely outside academia ("order me a pizza", "what's the weather")
-- Harmful or abusive content
+Classify the query into exactly one of three types:
 
-Mark the query as IN-SCOPE if:
-- It relates to ANY academic topic, methodology, concept, or could reasonably help
-  someone doing research — even if the topic is not directly about the specific
-  project keywords. Researchers often explore adjacent fields.
-- It asks about the contents of the knowledge base, such as listing papers,
-  summarizing documents, or asking what has been indexed. These are valid research
-  queries about the user's own collected literature.
+- "conversational": simple greetings, identity questions, small talk that can be answered
+  without searching any documents — e.g. "hi", "hello", "how are you", "who are you",
+  "what can you do", "thanks", "ok", "great".
 
-When in doubt, mark as in-scope.
+- "research": relates to ANY academic topic, methodology, concept, or could reasonably
+  help someone doing research — even if not directly about the project keywords.
+  Also includes questions about the knowledge base contents (listing papers, summaries,
+  what has been indexed). When in doubt, use "research".
+
+- "off_topic": completely unrelated to research AND not conversational — e.g.
+  "order me a pizza", "what's the weather", harmful or abusive content.
 
 Return JSON:
-{{"is_in_scope": true/false, "reason": "brief explanation"}}"""
+{{"is_in_scope": true/false, "query_type": "research|conversational|off_topic", "reason": "brief explanation"}}
+
+Rules:
+- is_in_scope is true for "research" and "conversational", false for "off_topic"
+- Default to "research" when uncertain"""
 
 
 GRADE_DOCUMENT_PROMPT = """You are a relevance grader for a research assistant.

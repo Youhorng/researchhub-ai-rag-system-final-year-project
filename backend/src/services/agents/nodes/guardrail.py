@@ -27,10 +27,11 @@ def make_guardrail_node(trace):
         # If no research goal is set, skip guardrail (allow everything)
         if not research_goal:
             latency = round((time.time() - t0) * 1000)
-            span.update(output={"is_in_scope": True, "reason": "no research goal set"})
+            span.update(output={"is_in_scope": True, "query_type": "research", "reason": "no research goal set"})
             span.end()
             return {
                 "is_in_scope": True,
+                "is_conversational": False,
                 "rejection_message": "",
                 "node_timings": {**state.get("node_timings", {}), "guardrail_ms": latency},
             }
@@ -52,27 +53,32 @@ def make_guardrail_node(trace):
             )
 
             result = json.loads(response.choices[0].message.content)
-            is_in_scope = result.get("is_in_scope", True)
+            query_type = result.get("query_type", "research")
+            is_in_scope = query_type != "off_topic"
+            is_conversational = query_type == "conversational"
             reason = result.get("reason", "")
 
         except Exception:
             logger.exception("Guardrail LLM call failed — defaulting to in-scope")
             is_in_scope = True
+            is_conversational = False
             reason = "guardrail error, defaulting to allow"
 
         latency = round((time.time() - t0) * 1000)
-        span.update(output={"is_in_scope": is_in_scope, "reason": reason})
+        span.update(output={"is_in_scope": is_in_scope, "is_conversational": is_conversational, "reason": reason})
         span.end()
 
         rejection_message = ""
         if not is_in_scope:
             rejection_message = (
-                f"This question doesn't seem related to your research project. "
-                f"Reason: {reason}. Please ask something relevant to your research goal."
+                "I'm here to help with your research! That one's a bit outside what I can assist with — "
+                "I'm best at answering questions about your papers, documents, and academic topics. "
+                "Feel free to ask me anything related to your knowledge base or research goal."
             )
 
         return {
             "is_in_scope": is_in_scope,
+            "is_conversational": is_conversational,
             "rejection_message": rejection_message,
             "node_timings": {**state.get("node_timings", {}), "guardrail_ms": latency},
         }

@@ -62,6 +62,20 @@ def _build_chat_messages(
     return messages
 
 
+def _build_conversational_messages(history: list, user_query: str) -> list[dict]:
+    """Build messages for a conversational (non-retrieval) response."""
+    system = (
+        "You are ResearchHub AI, an intelligent research assistant. "
+        "You help researchers discover, understand, and discuss academic papers. "
+        "For simple greetings or questions about yourself, respond briefly and warmly."
+    )
+    messages = [{"role": "system", "content": system}]
+    for msg in history:
+        messages.append({"role": msg.role, "content": msg.content})
+    messages.append({"role": "user", "content": user_query})
+    return messages
+
+
 def _collect_kb_titles(db: Session, project_id: uuid.UUID | None) -> list[str]:
     """Collect titles of all accepted papers and indexed documents for a project."""
     if not project_id:
@@ -191,6 +205,33 @@ async def run_rag_pipeline(
                 {"guardrail_rejected": True, "node_timings": result.get("node_timings", {})},
             )
             trace.update(output=rejection)
+            trace.end()
+            return
+
+        # 4b. Conversational fast path — skip retrieval, respond directly
+        if result.get("is_conversational", False):
+            messages = _build_conversational_messages(history, user_query)
+            gen_span = trace.start_observation(
+                name="generate_conversational",
+                as_type="generation",
+                model=settings.openai_chat_model,
+                input=messages,
+            )
+            full_response, input_tokens, output_tokens, gen_ms, _ = await _stream_openai(messages, gen_span)
+            yield _sse("chunk", {"content": full_response})
+            yield _sse("done", {})
+            chat_repo.add_message(
+                db, session_id, "assistant", full_response, [],
+                {
+                    "model": settings.openai_chat_model,
+                    "latency_ms": gen_ms,
+                    "input_tokens": input_tokens,
+                    "output_tokens": output_tokens,
+                    "conversational": True,
+                    "node_timings": result.get("node_timings", {}),
+                },
+            )
+            trace.update(output=full_response)
             trace.end()
             return
 

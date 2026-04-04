@@ -15,10 +15,12 @@ logger = logging.getLogger(__name__)
 
 
 def route_after_guardrail(state: AgentState) -> str:
-    """Route after guardrail: continue if in-scope, end if off-topic."""
-    if state.get("is_in_scope", True):
-        return "retrieve"
-    return END
+    """Route after guardrail: skip retrieval for off-topic or conversational queries."""
+    if not state.get("is_in_scope", True):
+        return END
+    if state.get("is_conversational", False):
+        return END
+    return "retrieve"
 
 
 def route_after_grading(state: AgentState) -> str:

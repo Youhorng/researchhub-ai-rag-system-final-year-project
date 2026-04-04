@@ -116,7 +116,7 @@ export default function ChatPage() {
   const [sessionToDelete, setSessionToDelete] = useState<string | null>(null);
 
   // UI state
-  const [showSidebar, setShowSidebar] = useState(true);
+  const [showSidebar, setShowSidebar] = useState(() => window.innerWidth >= 768);
   const [showCitations, setShowCitations] = useState(false);
   const [selectedMessageCitations, setSelectedMessageCitations] = useState<CitedSource[]>([]);
 
@@ -397,7 +397,7 @@ export default function ChatPage() {
       <button
         type="button"
         key={session.id}
-        onClick={() => setActiveSessionId(session.id)}
+        onClick={() => { setActiveSessionId(session.id); if (window.innerWidth < 768) setShowSidebar(false); }}
         className={`group/session w-full text-left p-3 rounded-xl text-sm transition-all cursor-pointer ${
           activeSessionId === session.id
             ? 'bg-surface_container_high text-white font-medium'
@@ -425,27 +425,34 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-7.5rem)] gap-0 animate-in fade-in duration-300">
+    <div className="relative flex h-[calc(100vh-7.5rem)] gap-0 animate-in fade-in duration-300">
       {/* Sessions Sidebar */}
       {showSidebar && (
-        <div className="w-64 flex-shrink-0 bg-surface_container_low border-r border-[#161f33] flex flex-col rounded-l-2xl overflow-hidden">
-          <div className="h-16 px-3 border-b border-[#161f33] flex items-center justify-center flex-shrink-0">
-            <button
-              onClick={handleNewSession}
-              className="w-4/5 flex items-center justify-center gap-2 bg-primary-gradient text-white py-1.5 px-4 rounded-xl font-medium shadow-[0_4px_20px_-4px_rgba(167,165,255,0.4)] hover:shadow-[0_4px_24px_-4px_rgba(167,165,255,0.6)] transition-all text-sm"
-            >
-              <Plus size={16} strokeWidth={2.5} />
-              New Chat
-            </button>
+        <>
+          {/* Mobile backdrop */}
+          <div
+            className="md:hidden fixed inset-0 z-20 bg-black/50"
+            onClick={() => setShowSidebar(false)}
+          />
+          <div className="absolute md:relative z-30 md:z-auto h-full w-64 flex-shrink-0 bg-surface_container_low border-r border-[#161f33] flex flex-col md:rounded-l-2xl overflow-hidden">
+            <div className="h-16 px-3 border-b border-[#161f33] flex items-center justify-center flex-shrink-0">
+              <button
+                onClick={handleNewSession}
+                className="w-4/5 flex items-center justify-center gap-2 bg-primary-gradient text-white py-1.5 px-4 rounded-xl font-medium shadow-[0_4px_20px_-4px_rgba(167,165,255,0.4)] hover:shadow-[0_4px_24px_-4px_rgba(167,165,255,0.6)] transition-all text-sm"
+              >
+                <Plus size={16} strokeWidth={2.5} />
+                New Chat
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto scrollbar-hide p-2 space-y-1">
+              {sessionsListContent}
+            </div>
           </div>
-          <div className="flex-1 overflow-y-auto scrollbar-hide p-2 space-y-1">
-            {sessionsListContent}
-          </div>
-        </div>
+        </>
       )}
 
       {/* Chat Main Area */}
-      <div className="flex-1 flex flex-col bg-surface_container rounded-r-2xl overflow-hidden min-w-0">
+      <div className={`flex-1 flex flex-col bg-surface_container overflow-hidden min-w-0 ${showSidebar ? 'rounded-r-2xl md:rounded-l-none' : 'rounded-2xl'}`}>
         {/* Chat header */}
         <div className="h-16 border-b border-[#161f33] flex items-center justify-between px-4 flex-shrink-0">
           <div className="flex items-center gap-3">
@@ -523,7 +530,7 @@ export default function ChatPage() {
                             <Sparkles size={14} className="text-primary" />
                           </div>
                         )}
-                        <div className={`max-w-[75%] ${msg.role === 'user' ? 'order-first' : ''}`}>
+                        <div className={`max-w-[85%] md:max-w-[75%] ${msg.role === 'user' ? 'order-first' : ''}`}>
                           <div
                             className={`px-4 py-3 rounded-2xl text-sm leading-relaxed ${
                               msg.role === 'user'
@@ -558,7 +565,7 @@ export default function ChatPage() {
                       <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 mt-1">
                         <Sparkles size={14} className="text-primary animate-pulse" />
                       </div>
-                      <div className="max-w-[75%]">
+                      <div className="max-w-[85%] md:max-w-[75%]">
                         <div className="px-4 py-3 rounded-2xl rounded-bl-md bg-surface_container_high text-zinc-200 text-sm leading-relaxed">
                           {renderMarkdown(streamingContent)}
                         </div>
@@ -662,7 +669,7 @@ export default function ChatPage() {
 
           {/* Citations Panel */}
           {showCitations && selectedMessageCitations.length > 0 && (
-            <div className="w-72 border-l border-[#161f33] bg-surface_container_low flex-shrink-0 overflow-y-auto scrollbar-hide">
+            <div className="absolute md:relative right-0 top-0 bottom-0 z-30 md:z-auto w-72 border-l border-[#161f33] bg-surface_container_low flex-shrink-0 overflow-y-auto scrollbar-hide">
               <div className="p-4 border-b border-[#161f33]">
                 <h3 className="text-sm font-medium text-white flex items-center gap-2">
                   <BookOpen size={14} className="text-indigo-400" />
