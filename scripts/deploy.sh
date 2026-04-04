@@ -78,7 +78,16 @@ echo "--- Starting services ---"
 $COMPOSE_CMD up -d --remove-orphans
 
 # ---------------------------------------------------------------------------
-# Step 5: Wait for PostgreSQL to be ready before running migrations
+# Step 5: Reload Nginx so it re-resolves new container IPs
+# docker compose up only restarts containers whose image changed — Nginx stays
+# up across deploys and caches the old API/frontend IPs. A reload (graceful,
+# no downtime) forces it to pick up the new container addresses.
+# ---------------------------------------------------------------------------
+echo "--- Reloading Nginx ---"
+docker exec researchhub-nginx nginx -s reload
+
+# ---------------------------------------------------------------------------
+# Step 6: Wait for PostgreSQL to be ready before running migrations
 # pg_isready needs no -U flag — it checks network connectivity only.
 # POSTGRES_USER is not exported to the deploy shell (it lives in .env for
 # docker compose variable substitution), so we omit it here.
@@ -87,14 +96,14 @@ echo "--- Waiting for PostgreSQL ---"
 timeout 120 bash -c "until $COMPOSE_CMD exec -T postgres pg_isready 2>/dev/null; do sleep 3; done"
 
 # ---------------------------------------------------------------------------
-# Step 6: Run Alembic migrations
+# Step 7: Run Alembic migrations
 # Idempotent — no-op if database is already at the latest revision
 # ---------------------------------------------------------------------------
 echo "--- Running Alembic migrations ---"
 $COMPOSE_CMD exec -T api alembic upgrade head
 
 # ---------------------------------------------------------------------------
-# Step 7: Clean up dangling images to free disk space
+# Step 8: Clean up dangling images to free disk space
 # Old images accumulate on every deploy — this keeps the droplet disk clean
 # ---------------------------------------------------------------------------
 echo "--- Cleaning up old images ---"
