@@ -11,7 +11,7 @@ export default function AuthLayout() {
         <div className="z-10 max-w-2xl font-display">
           {/* Logo and Brand Name */}
           <div className="flex items-center gap-4 mb-8">
-            <img src="/main_logo.png" alt="ResearchHub Logo" className="w-12 h-12 sm:w-14 sm:h-14 object-contain rounded-lg hover:opacity-90 transition-opacity" />
+            <img src="/main_logo.webp" alt="ResearchHub Logo" className="w-12 h-12 sm:w-14 sm:h-14 object-contain rounded-lg hover:opacity-90 transition-opacity" />
             <span className="text-white font-bold text-2xl sm:text-3xl tracking-tight">ResearchHub</span>
           </div>
 

@@ -59,6 +59,7 @@ trap rollback ERR
 # and backend/src/ (used by Airflow via volume mount)
 # ---------------------------------------------------------------------------
 echo "--- Pulling latest code from main ---"
+git checkout -- .
 git pull origin main
 
 # ---------------------------------------------------------------------------

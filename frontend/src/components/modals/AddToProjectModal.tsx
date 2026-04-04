@@ -137,7 +137,7 @@ export default function AddToProjectModal({ paper, onClose }: AddToProjectModalP
             <FolderOpen size={18} className="text-indigo-400" />
             <h2 className="text-white font-semibold text-base">Add to Project</h2>
           </div>
-          <button onClick={onClose} className="text-zinc-400 hover:text-white p-1 rounded-lg hover:bg-surface_container_high transition-colors">
+          <button onClick={onClose} aria-label="Close" className="text-zinc-400 hover:text-white p-1 rounded-lg hover:bg-surface_container_high transition-colors">
             <X size={18} />
           </button>
         </div>

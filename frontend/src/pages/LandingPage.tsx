@@ -64,7 +64,7 @@ function Navbar() {
     >
       <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
         <a href="/" className="flex items-center gap-2.5">
-          <img src="/main_logo.png" alt="ResearchHub" className="w-8 h-8 object-contain drop-shadow-[0_0_12px_rgba(167,165,255,0.4)]" />
+          <img src="/main_logo.webp" alt="ResearchHub" className="w-8 h-8 object-contain drop-shadow-[0_0_12px_rgba(167,165,255,0.4)]" />
           <span className="text-white font-semibold text-lg font-display tracking-tight">ResearchHub</span>
         </a>
 
@@ -355,7 +355,7 @@ function Footer() {
     <footer className="border-t border-[#161f33] bg-surface_container_low py-10 px-6">
       <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-2.5">
-          <img src="/main_logo.png" alt="ResearchHub" className="w-6 h-6 object-contain opacity-80" />
+          <img src="/main_logo.webp" alt="ResearchHub" className="w-6 h-6 object-contain opacity-80" />
           <span className="text-zinc-500 text-sm font-medium">ResearchHub AI</span>
           <span className="text-zinc-700 text-sm">· © {new Date().getFullYear()}</span>
         </div>

@@ -78,7 +78,7 @@ export default function ProjectLayout() {
         <div className={`h-14 border-b border-[#161f33] flex items-center px-4 ${isSidebarOpen ? 'justify-between' : 'justify-center'} flex-shrink-0 w-full`}>
           {isSidebarOpen && (
              <div className="flex items-center gap-3">
-               <img src="/main_logo.png" alt="Logo" className="w-8 h-8 object-contain rounded-lg shadow-sm flex-shrink-0" />
+               <img src="/main_logo.webp" alt="Logo" className="w-8 h-8 object-contain rounded-lg shadow-sm flex-shrink-0" />
                <div className="flex flex-col">
                  <span className="font-bold text-base text-white leading-tight tracking-tight">ResearchHub</span>
                  <span className="text-[9px] font-bold text-primary tracking-widest uppercase mt-0.5">Project View</span>
@@ -86,15 +86,17 @@ export default function ProjectLayout() {
              </div>
           )}
           
-          <button 
+          <button
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            aria-label="Toggle sidebar"
             className="text-zinc-400 hover:text-white p-1.5 rounded-lg hover:bg-surface_container_high transition-colors hidden lg:flex flex-shrink-0"
           >
             <Sidebar size={20} />
           </button>
 
-          <button 
+          <button
             onClick={() => setIsSidebarOpen(false)}
+            aria-label="Close sidebar"
             className="text-zinc-400 hover:text-white p-1.5 rounded-lg hover:bg-surface_container_high transition-colors lg:hidden absolute top-3 right-4 z-50"
           >
             <X size={20} />
@@ -143,8 +145,9 @@ export default function ProjectLayout() {
         {/* Top Bar Header */}
         <header className="h-14 border-b border-[#161f33] bg-surface/80 backdrop-blur-md flex items-center justify-between px-8 flex-shrink-0 z-10 w-full transition-all duration-300">
           <div className="flex items-center gap-4">
-            <button 
+            <button
               onClick={() => setIsSidebarOpen(true)}
+              aria-label="Open menu"
               className="text-zinc-400 hover:text-white p-2 rounded-lg hover:bg-surface_container_high transition-colors -ml-2 lg:hidden"
             >
               <Menu size={24} />

@@ -288,7 +288,7 @@ export default function NewTopicModal({ isOpen, onClose, projectId, onTopicCreat
         {/* Header */}
         <div className="relative flex items-center justify-center p-5 border-b border-[#161f33] flex-shrink-0">
           <h2 className="text-xl font-bold text-white">{headerTitle}</h2>
-          <button onClick={resetAndClose} className="absolute right-5 text-zinc-300 hover:text-white transition-colors">
+          <button onClick={resetAndClose} aria-label="Close" className="absolute right-5 text-zinc-300 hover:text-white transition-colors">
             <X size={24} />
           </button>
         </div>
@@ -394,7 +394,7 @@ export default function NewTopicModal({ isOpen, onClose, projectId, onTopicCreat
                     {Array.from(selectedCategories).map(catId => (
                       <span key={catId} className="bg-surface_container border border-zinc-700 text-white text-xs px-2 py-1 rounded-md flex items-center gap-1.5">
                         {ARXIV_CATEGORIES_MAP[catId] || catId}
-                        <button type="button" onClick={(e) => { e.stopPropagation(); toggleCategory(catId); }} className="text-zinc-300 hover:text-white">
+                        <button type="button" aria-label="Remove" onClick={(e) => { e.stopPropagation(); toggleCategory(catId); }} className="text-zinc-300 hover:text-white">
                           <X size={12} />
                         </button>
                       </span>
