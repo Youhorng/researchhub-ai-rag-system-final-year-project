@@ -207,7 +207,7 @@ export default function ProjectsPage() {
                       ? 'hover:bg-emerald-500/10 hover:border-emerald-500/30 text-zinc-400 hover:text-emerald-400'
                       : 'hover:bg-amber-500/10 hover:border-amber-500/30 text-zinc-400 hover:text-amber-400'
                   }`}
-                  title={project.status === 'archived' ? 'Unarchive Project' : 'Archive Project'}
+                  aria-label={project.status === 'archived' ? 'Unarchive Project' : 'Archive Project'}
                 >
                   {archiveIcon}
                 </button>
@@ -215,7 +215,7 @@ export default function ProjectsPage() {
                   onClick={() => setProjectToDelete(project)}
                   disabled={isDeleting === project.id}
                   className="w-12 flex-shrink-0 flex items-center justify-center bg-surface_container_high hover:bg-red-500/10 border border-[#161f33] hover:border-red-500/30 text-zinc-400 hover:text-red-400 rounded-xl transition-colors disabled:opacity-50"
-                  title="Delete Project"
+                  aria-label="Delete Project"
                 >
                   {isDeleting === project.id ? <Loader2 size={18} className="animate-spin text-red-400" /> : <Trash2 size={18} />}
                 </button>

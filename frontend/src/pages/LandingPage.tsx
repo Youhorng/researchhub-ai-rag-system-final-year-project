@@ -38,7 +38,7 @@ function useInView(threshold = 0.15) {
 }
 
 // Base classes applied to every reveal wrapper
-const REVEAL_BASE = 'transition-all duration-700 ease-out'
+const REVEAL_BASE = 'transition-[opacity,transform] duration-700 ease-out'
 const HIDDEN      = 'opacity-0 translate-y-8'
 const SHOWN       = 'opacity-100 translate-y-0'
 
@@ -254,7 +254,7 @@ function FeatureGrid() {
           {FEATURES.map(({ icon: Icon, title, description }, i) => (
             <div
               key={title}
-              className={`${REVEAL_BASE} group p-6 rounded-2xl bg-surface_container border border-[#161f33] hover:border-[#212c43] hover:bg-surface_container_high hover:shadow-[0_0_24px_rgba(167,165,255,0.06)] ${gridRef.visible ? SHOWN : HIDDEN}`}
+              className={`${REVEAL_BASE} group p-6 rounded-2xl bg-surface_container border border-[#161f33] hover:border-[#212c43] hover:bg-surface_container_high hover:shadow-[0_0_24px_rgba(167,165,255,0.06)] transition-[opacity,transform,colors] ${gridRef.visible ? SHOWN : HIDDEN}`}
               style={{ transitionDelay: `${i * 60}ms` }}
             >
               <div className="w-11 h-11 rounded-xl bg-surface_container_high border border-[#1b263b] flex items-center justify-center mb-4 group-hover:shadow-[0_0_16px_rgba(167,165,255,0.15)] transition-all">

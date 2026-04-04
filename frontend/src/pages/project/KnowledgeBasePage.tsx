@@ -466,7 +466,7 @@ export default function KnowledgeBasePage() {
                   onClick={(e) => { e.stopPropagation(); setDeleteConfirmPaperId(pp.paper.id); }}
                   disabled={deletingId === pp.paper.id}
                   className="p-2 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-50"
-                  title="Remove paper"
+                  aria-label="Remove paper"
                 >
                   {deletingId === pp.paper.id ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
                 </button>
@@ -579,7 +579,7 @@ export default function KnowledgeBasePage() {
               onClick={() => handleDeleteDocument(doc.id)}
               disabled={deletingId === doc.id}
               className="p-2 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-50 flex-shrink-0"
-              title="Delete document"
+              aria-label="Delete document"
             >
               {deletingId === doc.id ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
             </button>

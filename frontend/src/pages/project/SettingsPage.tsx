@@ -228,7 +228,7 @@ export default function SettingsPage() {
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-secondary_container text-on_secondary_container rounded-lg text-sm"
               >
                 {kw}
-                <button onClick={() => removeKeyword(kw)} className="hover:text-white transition-colors">
+                <button onClick={() => removeKeyword(kw)} aria-label="Remove keyword" className="hover:text-white transition-colors">
                   <X size={14} />
                 </button>
               </span>
@@ -270,7 +270,7 @@ export default function SettingsPage() {
             {Array.from(selectedCategories).map(catId => (
               <span key={catId} className="bg-surface_container border border-zinc-700 text-white text-xs px-2 py-1 rounded-md flex items-center gap-1.5">
                 {ARXIV_CATEGORIES_MAP[catId] || catId}
-                <button type="button" onClick={(e) => { e.stopPropagation(); toggleCategory(catId); }} className="text-zinc-300 hover:text-white">
+                <button type="button" aria-label="Remove category" onClick={(e) => { e.stopPropagation(); toggleCategory(catId); }} className="text-zinc-300 hover:text-white">
                   <X size={12} />
                 </button>
               </span>

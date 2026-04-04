@@ -219,14 +219,14 @@ export default function TopicsPage() {
                   <button
                     onClick={() => openEditModal(topic)}
                     className="p-2 text-zinc-500 hover:text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-colors"
-                    title="Edit topic"
+                    aria-label="Edit topic"
                   >
                     <Pencil size={16} />
                   </button>
                   <button
                     onClick={() => setDeleteConfirmId(topic.id)}
                     className="p-2 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
-                    title="Delete topic"
+                    aria-label="Delete topic"
                   >
                     <Trash2 size={16} />
                   </button>

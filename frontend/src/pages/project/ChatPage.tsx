@@ -412,12 +412,12 @@ export default function ChatPage() {
           <button
             onClick={(e) => { e.stopPropagation(); setSessionToDelete(session.id); }}
             className="opacity-0 group-hover/session:opacity-100 p-1 text-zinc-500 hover:text-red-400 rounded transition-all flex-shrink-0"
-            title="Delete conversation"
+            aria-label="Delete conversation"
           >
             <Trash2 size={12} />
           </button>
         </div>
-        <p className="text-[10px] text-zinc-600 mt-1 pl-5">
+        <p className="text-[10px] text-zinc-400 mt-1 pl-5">
           {new Date(session.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
         </p>
       </button>
@@ -458,6 +458,7 @@ export default function ChatPage() {
           <div className="flex items-center gap-3">
             <button
               onClick={() => setShowSidebar(!showSidebar)}
+              aria-label="Toggle conversation sidebar"
               className="text-zinc-400 hover:text-white p-1.5 rounded-lg hover:bg-surface_container_high transition-colors"
             >
               <MessageSquare size={16} />
@@ -622,12 +623,13 @@ export default function ChatPage() {
                 <button
                   type="submit"
                   disabled={isStreaming || !inputValue.trim()}
+                  aria-label={isStreaming ? 'Generating response' : 'Send message'}
                   className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center justify-center w-8 h-8 bg-primary-gradient text-white rounded-lg shadow-[0_4px_20px_-4px_rgba(167,165,255,0.4)] hover:shadow-[0_4px_24px_-4px_rgba(167,165,255,0.6)] transition-all disabled:opacity-50"
                 >
                   {isStreaming ? <Loader2 size={16} className="animate-spin" /> : <SendHorizontal size={16} />}
                 </button>
               </form>
-              <p className="text-[10px] text-zinc-600 mt-2 text-center">
+              <p className="text-[10px] text-zinc-400 mt-2 text-center">
                 AI answers are based on your indexed papers and documents. Always verify important claims.
               </p>
             </div>

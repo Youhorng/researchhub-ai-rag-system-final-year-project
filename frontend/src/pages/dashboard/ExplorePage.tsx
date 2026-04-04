@@ -305,6 +305,7 @@ export default function ExplorePage() {
                 {ARXIV_CATEGORIES_MAP[catId] || catId}
                 <button
                   type="button"
+                  aria-label="Remove category filter"
                   onClick={(e) => { e.stopPropagation(); toggleCategory(catId); }}
                   className="text-zinc-400 hover:text-white"
                 >
