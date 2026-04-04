@@ -205,12 +205,14 @@ export default function NewTopicModal({ isOpen, onClose, projectId, onTopicCreat
         const topic = await res.json();
         setTopicId(topic.id);
         onTopicCreated(topic);
+        setStep(2);
+        searchPapersForTopic(topic.id, Array.from(selectedKeywords));
+        return;
       }
 
-      const activeTopicId = topicId || undefined;
       setStep(2);
-      if (activeTopicId) {
-        searchPapersForTopic(activeTopicId, Array.from(selectedKeywords));
+      if (topicId) {
+        searchPapersForTopic(topicId, Array.from(selectedKeywords));
       }
     } catch (err: any) {
       setError(err.message || 'Error saving topic.');

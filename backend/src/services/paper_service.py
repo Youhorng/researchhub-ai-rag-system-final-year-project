@@ -72,22 +72,24 @@ def search_and_suggest_papers(
         # Save (or retrieve) the paper globally in Postgres
         paper = paper_repo.get_or_create(db, source)
         
-        # Link this paper to the current project (if not already linked)
+        # Skip papers already accepted or rejected for this project
         existing_link = db.query(ProjectPaper).filter_by(
             project_id=project.id,
             paper_id=paper.id
         ).first()
-        
+
+        if existing_link and existing_link.status in ("accepted", "rejected"):
+            continue
+
         if not existing_link:
-            project_paper = ProjectPaper(
+            db.add(ProjectPaper(
                 project_id=project.id,
                 paper_id=paper.id,
                 status="suggested",
                 relevance_score=relevance_score,
                 added_by="starter_pack",
-                topic_id=topic_id
-            )
-            db.add(project_paper)
+                topic_id=topic_id,
+            ))
 
         suggested_papers.append(paper)
 
@@ -166,6 +168,10 @@ def discover_papers(
             project_id=project.id,
             paper_id=paper.id,
         ).first()
+
+        if existing_link and existing_link.status in ("accepted", "rejected"):
+            continue
+
         if not existing_link:
             db.add(ProjectPaper(
                 project_id=project.id,
@@ -174,7 +180,7 @@ def discover_papers(
                 relevance_score=hit.get("_score", 0.0),
                 added_by="discovery",
             ))
-            suggested_papers.append(paper)
+        suggested_papers.append(paper)
 
     db.commit()
     return suggested_papers
