@@ -75,14 +75,6 @@ export default function DashboardPage() {
     return rtf.format(-Math.floor(diffMs / 86400000), 'day');
   };
 
-  const handleCopyToken = async () => {
-    const token = await getToken();
-    if (token) {
-      await navigator.clipboard.writeText(token);
-      alert('JWT token copied to clipboard! Use it in Postman as:\nAuthorization: Bearer <token>');
-    }
-  };
-
   return (
     <div className="max-w-5xl mx-auto animate-in fade-in zoom-in-95 duration-300">
       <h1 className="text-3xl font-bold font-display text-white mb-2">Welcome Back</h1>
@@ -225,19 +217,6 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* Developer Tools */}
-          <div className="bg-surface_container_low rounded-2xl p-6 border border-[#161f33] max-w-lg">
-            <h3 className="font-bold text-white mb-2">Developer Tools</h3>
-            <p className="text-sm text-zinc-400 mb-6">
-              Use your JWT session token to authenticate with the backend API.
-            </p>
-            <button
-              onClick={handleCopyToken}
-              className="w-full py-3 bg-primary-gradient shadow-lg hover:shadow-xl text-white rounded-xl font-medium transition-all"
-            >
-              Copy JWT Token
-            </button>
-          </div>
         </>
       )}
 

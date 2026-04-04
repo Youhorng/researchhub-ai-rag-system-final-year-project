@@ -35,7 +35,7 @@ class CategoryDataPoint(BaseModel):
 
 class ProjectDataPoint(BaseModel):
     name: str
-    papers: int
+    total: int
 
 @router.get("/overview", response_model=AnalyticsOverview)
 async def get_analytics_overview(
@@ -107,7 +107,7 @@ async def get_papers_over_time(
     # Fill in missing days with zeros for a smooth chart
     safe_days = max(1, min(int(days), 365))
     data = []
-    for i in range(safe_days):
+    for i in range(safe_days + 1):
         d = cutoff_date + timedelta(days=i)
         day_str = d.strftime("%Y-%m-%d")
         data.append(TimeSeriesDataPoint(date=day_str, count=counter.get(day_str, 0)))
@@ -139,7 +139,7 @@ async def get_chat_activity(
             
     safe_days = max(1, min(int(days), 365))
     data = []
-    for i in range(safe_days):
+    for i in range(safe_days + 1):
         d = cutoff_date + timedelta(days=i)
         day_str = d.strftime("%Y-%m-%d")
         data.append(TimeSeriesDataPoint(date=day_str, count=counter.get(day_str, 0)))
@@ -178,11 +178,11 @@ async def get_papers_by_project(
     """Get paper counts grouped by project."""
     # We can query projects directly, ordering by paper_count
     projects = db.execute(
-        select(Project.name, Project.paper_count)
+        select(Project.name, Project.paper_count, Project.document_count)
         .where(Project.owner_id == current_user.id)
-        .order_by(desc(Project.paper_count))
+        .order_by(desc(Project.paper_count + Project.document_count))
         .limit(limit)
     ).all()
-    
-    data = [ProjectDataPoint(name=p.name, papers=p.paper_count) for p in projects]
+
+    data = [ProjectDataPoint(name=p.name, total=p.paper_count + p.document_count) for p in projects]
     return data

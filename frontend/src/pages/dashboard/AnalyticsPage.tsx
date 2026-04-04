@@ -25,7 +25,7 @@ interface CategoryData {
 
 interface ProjectData {
   name: string;
-  papers: number;
+  total: number;
 }
 
 const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f59e0b', '#10b981', '#06b6d4', '#3b82f6', '#14b8a6', '#84cc16'];
@@ -66,7 +66,7 @@ const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
   if (active && payload?.length) {
     return (
       <div className="bg-surface_container_high border border-[#161f33] p-3 rounded-lg shadow-xl">
-        <p className="text-zinc-300 text-sm font-medium mb-1">{label}</p>
+        <p className="text-zinc-300 text-sm font-medium mb-1">{label ? new Date(label + "T00:00:00Z").toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }) : ''}</p>
         {payload.map((entry) => (
           <p key={entry.name} className="text-sm font-bold" style={{ color: entry.color }}>
             {entry.name}: {entry.value}
@@ -245,7 +245,7 @@ export default function AnalyticsPage() {
                       fontSize={12} 
                       tickLine={false} 
                       axisLine={false}
-                      tickFormatter={(val) => new Date(val).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                      tickFormatter={(val) => new Date(val + "T00:00:00Z").toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' })}
                     />
                     <YAxis stroke="#71717a" fontSize={12} tickLine={false} axisLine={false} />
                     <Tooltip content={<CustomTooltip />} />
@@ -267,7 +267,7 @@ export default function AnalyticsPage() {
                       fontSize={12} 
                       tickLine={false} 
                       axisLine={false}
-                      tickFormatter={(val) => new Date(val).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                      tickFormatter={(val) => new Date(val + "T00:00:00Z").toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' })}
                     />
                     <YAxis stroke="#71717a" fontSize={12} tickLine={false} axisLine={false} />
                     <Tooltip content={<CustomTooltip />} cursor={false} />
@@ -333,7 +333,7 @@ export default function AnalyticsPage() {
                         tickFormatter={(value) => value.length > 15 ? `${value.substring(0, 15)}...` : value}
                       />
                       <Tooltip content={<CustomTooltip />} cursor={{fill: 'transparent'}} />
-                      <Bar dataKey="papers" name="Papers" fill="#10b981" radius={[0, 4, 4, 0]} maxBarSize={32} />
+                      <Bar dataKey="total" name="Items" fill="#10b981" radius={[0, 4, 4, 0]} maxBarSize={32} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
