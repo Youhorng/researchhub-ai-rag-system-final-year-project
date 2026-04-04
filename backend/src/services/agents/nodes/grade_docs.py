@@ -40,7 +40,7 @@ def make_grade_docs_node(trace):
     """Factory that returns a grade_docs node with access to the Langfuse trace."""
 
     async def grade_docs_node(state: AgentState) -> dict:
-        span = trace.start_span(name="grade_docs", input=state["query"])
+        span = trace.span(name="grade_docs", input=state["query"])
         t0 = time.time()
         chunks = state.get("retrieved_chunks", [])
 

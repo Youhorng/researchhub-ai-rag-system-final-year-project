@@ -18,7 +18,7 @@ def make_rewrite_query_node(trace):
     """Factory that returns a rewrite_query node with access to the Langfuse trace."""
 
     async def rewrite_query_node(state: AgentState) -> dict:
-        span = trace.start_span(name="rewrite_query", input=state["query"])
+        span = trace.span(name="rewrite_query", input=state["query"])
         t0 = time.time()
 
         prompt = REWRITE_QUERY_PROMPT.format(

@@ -55,10 +55,10 @@ class _NoOpSpan:
     def update(self, **kwargs):
         return self
 
-    def start_span(self, **kwargs):
+    def span(self, **kwargs):
         return _NoOpSpan()
 
-    def start_generation(self, **kwargs):
+    def generation(self, **kwargs):
         return _NoOpSpan()
 
     def update_trace(self, **kwargs):
@@ -81,16 +81,16 @@ def create_rag_trace(
         return _NoOpSpan()
 
     try:
-        span = client.start_span(
+        trace = client.trace(
             name="rag-chat",
             input=user_query,
+            user_id=str(user_id),
+            session_id=str(session_id),
             metadata={
-                "user_id": str(user_id),
-                "session_id": str(session_id),
                 "project_id": str(project_id),
             },
         )
-        return span
+        return trace
     except Exception:
         logger.exception("Failed to create Langfuse trace")
         return _NoOpSpan()

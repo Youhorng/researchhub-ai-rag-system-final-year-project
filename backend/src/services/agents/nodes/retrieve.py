@@ -152,7 +152,7 @@ def make_retrieve_node(os_client: OpenSearch, trace):
 
         # Embed
         t0 = time.time()
-        embed_span = trace.start_span(name="embed", input=query_text)
+        embed_span = trace.span(name="embed", input=query_text)
         vectors = get_embeddings([query_text])
         query_vector = vectors[0] if vectors else []
         embed_ms = round((time.time() - t0) * 1000)
@@ -161,7 +161,7 @@ def make_retrieve_node(os_client: OpenSearch, trace):
 
         # Retrieve
         t0 = time.time()
-        retrieve_span = trace.start_span(name="retrieve", input=query_text)
+        retrieve_span = trace.span(name="retrieve", input=query_text)
         chunks = _search_chunks(os_client, query_text, query_vector, state.get("project_id"), size=15)
 
         # Ensure coverage across all papers/documents in the project

@@ -18,7 +18,7 @@ def make_guardrail_node(trace):
     """Factory that returns a guardrail node with access to the Langfuse trace."""
 
     async def guardrail_node(state: AgentState) -> dict:
-        span = trace.start_span(name="guardrail", input=state["query"])
+        span = trace.span(name="guardrail", input=state["query"])
         t0 = time.time()
 
         research_goal = state.get("research_goal", "")
