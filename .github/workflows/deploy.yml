@@ -91,7 +91,7 @@ jobs:
       - name: npm audit (frontend deps)
         run: |
           cd frontend
-          npm ci
+          npm ci --ignore-scripts
           npm audit --audit-level=high
 
   # ============================================================================
@@ -379,22 +379,29 @@ jobs:
           ssh-private-key: ${{ secrets.DROPLET_SSH_KEY }}
 
       - name: Add droplet to known hosts
+        env:
+          DROPLET_HOST: ${{ secrets.DROPLET_HOST }}
         run: |
           mkdir -p ~/.ssh
-          ssh-keyscan -T 60 -H ${{ secrets.DROPLET_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || \
-          ssh-keyscan -T 60 -H ${{ secrets.DROPLET_HOST }} >> ~/.ssh/known_hosts
+          ssh-keyscan -T 60 -H "$DROPLET_HOST" >> ~/.ssh/known_hosts 2>/dev/null || \
+          ssh-keyscan -T 60 -H "$DROPLET_HOST" >> ~/.ssh/known_hosts
 
       - name: Sync deploy script before running it
         # Always push the latest deploy.sh from this commit to the droplet BEFORE
         # executing it. Without this, the droplet runs whatever version was left
         # from the previous (possibly failed) deploy, so script fixes never take effect.
+        env:
+          DROPLET_USER: ${{ secrets.DROPLET_USER }}
+          DROPLET_HOST: ${{ secrets.DROPLET_HOST }}
         run: |
           scp scripts/deploy.sh \
-            ${{ secrets.DROPLET_USER }}@${{ secrets.DROPLET_HOST }}:~/researchhub/scripts/deploy.sh
+            "$DROPLET_USER@$DROPLET_HOST:~/researchhub/scripts/deploy.sh"
 
       - name: Deploy to droplet
         env:
+          DROPLET_USER: ${{ secrets.DROPLET_USER }}
+          DROPLET_HOST: ${{ secrets.DROPLET_HOST }}
           SHA_TAG: sha-${{ github.sha }}
         run: |
-          ssh ${{ secrets.DROPLET_USER }}@${{ secrets.DROPLET_HOST }} \
+          ssh "$DROPLET_USER@$DROPLET_HOST" \
             "IMAGE_TAG=$SHA_TAG bash ~/researchhub/scripts/deploy.sh"
