@@ -113,7 +113,7 @@ export default function NewProjectModal({ isOpen, onClose }: NewProjectModalProp
       await fetch(`${apiUrl}/projects/${createdProjectId}/papers/${paperId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ status: isAdding ? 'accepted' : 'suggested' })
+        body: JSON.stringify({ status: isAdding ? 'accepted' : 'rejected' })
       });
     } catch (err) {
       console.error("Failed to toggle paper", err);

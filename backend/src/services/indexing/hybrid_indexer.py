@@ -35,8 +35,22 @@ def index_paper_chunks(paper_id: uuid.UUID, project_id: uuid.UUID) -> None:
             logger.error("Paper %s not found in DB — skipping indexing", paper_id)
             return
 
-        if paper.chunks_indexed:
-            logger.info("Paper %s already indexed — skipping", paper.arxiv_id)
+        # Check per-project: the same paper can be indexed for multiple projects,
+        # each with its own project_id in the chunk docs.
+        os_client = get_opensearch_client()
+        existing = os_client.count(
+            index=chunk_index,
+            body={"query": {"bool": {"filter": [
+                {"term": {"paper_id": str(paper_id)}},
+                {"term": {"project_id": str(project_id)}},
+            ]}}},
+        )
+        if existing["count"] > 0:
+            logger.info(
+                "Paper %s already indexed for project %s — skipping",
+                paper.arxiv_id, project_id,
+            )
+            os_client.close()
             return
 
         if not paper.pdf_url:
@@ -56,7 +70,6 @@ def index_paper_chunks(paper_id: uuid.UUID, project_id: uuid.UUID) -> None:
         logger.info("Produced %d chunks for paper %s", len(chunks), paper.arxiv_id)
 
         # Step 3: Embed in batches and build bulk actions
-        os_client = get_opensearch_client()
         actions: list[dict] = []
 
         for i in range(0, len(chunks), EMBED_BATCH_SIZE):
