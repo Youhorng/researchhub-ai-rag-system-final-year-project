@@ -80,6 +80,14 @@ export default function NewTopicModal({ isOpen, onClose, projectId, onTopicCreat
   const [isSaving, setIsSaving] = useState(false);
   const [topicId, setTopicId] = useState<string | null>(null);
 
+  // Validation touched states
+  const [topicNameTouched, setTopicNameTouched] = useState(false);
+  const [researchGoalTouched, setResearchGoalTouched] = useState(false);
+  const [keywordsTouched, setKeywordsTouched] = useState(false);
+  const [categoriesTouched, setCategoriesTouched] = useState(false);
+  const [yearFromTouched, setYearFromTouched] = useState(false);
+  const [yearToTouched, setYearToTouched] = useState(false);
+
   // Step 2: papers
   const [isSearchingPapers, setIsSearchingPapers] = useState(false);
   const [suggestedPapers, setSuggestedPapers] = useState<any[]>([]);
@@ -165,11 +173,22 @@ export default function NewTopicModal({ isOpen, onClose, projectId, onTopicCreat
 
   const toggleCategory = (catId: string) => setSelectedCategories(prev => toggleSetItem(prev, catId));
 
+  const isFormValid =
+    topicName.trim() &&
+    researchGoal.trim() &&
+    selectedKeywords.size > 0 &&
+    selectedCategories.size > 0 &&
+    yearFrom.trim() &&
+    yearTo.trim();
+
   const handleSaveTopic = async () => {
-    if (!topicName.trim()) {
-      setError('Topic name is required.');
-      return;
-    }
+    setTopicNameTouched(true);
+    setResearchGoalTouched(true);
+    setKeywordsTouched(true);
+    setCategoriesTouched(true);
+    setYearFromTouched(true);
+    setYearToTouched(true);
+    if (!isFormValid) return;
     setError('');
     setIsSaving(true);
 
@@ -256,6 +275,12 @@ export default function NewTopicModal({ isOpen, onClose, projectId, onTopicCreat
       setTopicName('');
       setResearchGoal('');
       setError('');
+      setTopicNameTouched(false);
+      setResearchGoalTouched(false);
+      setKeywordsTouched(false);
+      setCategoriesTouched(false);
+      setYearFromTouched(false);
+      setYearToTouched(false);
       setSuggestedKeywords([]);
       setSelectedKeywords(new Set());
       setCustomKeyword('');
@@ -300,81 +325,95 @@ export default function NewTopicModal({ isOpen, onClose, projectId, onTopicCreat
               {error && <div className="p-3 bg-red-500/10 text-red-400 border border-red-500/20 rounded-lg text-sm">{error}</div>}
 
               <div>
-                <label htmlFor="topic-name-input" className="block text-sm font-medium text-zinc-100 mb-1.5">Topic Name *</label>
+                <label htmlFor="topic-name-input" className="block text-sm font-medium text-zinc-100 mb-1.5">Topic Name <span className="text-red-400">*</span></label>
                 <input
                   id="topic-name-input"
                   type="text"
                   value={topicName}
                   onChange={(e) => setTopicName(e.target.value)}
-                  className="w-full bg-surface_container_high border border-[#161f33] rounded-xl px-4 py-2.5 text-white placeholder-zinc-400 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-colors"
+                  onBlur={() => setTopicNameTouched(true)}
+                  className={`w-full bg-surface_container_high border rounded-xl px-4 py-2.5 text-white placeholder-zinc-400 focus:outline-none focus:ring-1 transition-colors ${topicNameTouched && !topicName.trim() ? 'border-red-500/60 focus:border-red-500 focus:ring-red-500/30' : 'border-[#161f33] focus:border-primary/50 focus:ring-primary/50'}`}
                   placeholder="e.g., Transformer Architectures"
                 />
+                {topicNameTouched && !topicName.trim() && (
+                  <p className="mt-1.5 text-xs text-red-400">Topic name is required.</p>
+                )}
               </div>
 
               {/* Research Goal + Suggest Keywords */}
               <div className="p-4 bg-surface_container_low border border-[#161f33] rounded-xl space-y-4">
                 <div>
-                  <label htmlFor="topic-goal-textarea" className="block text-sm font-medium text-zinc-100 mb-1.5">Topic Goal</label>
+                  <label htmlFor="topic-goal-textarea" className="block text-sm font-medium text-zinc-100 mb-1.5">Topic Goal <span className="text-red-400">*</span></label>
                   <textarea
                     id="topic-goal-textarea"
                     value={researchGoal}
                     onChange={(e) => setResearchGoal(e.target.value)}
+                    onBlur={() => setResearchGoalTouched(true)}
                     rows={2}
-                    className="w-full bg-surface_container_high border border-[#161f33] rounded-xl px-4 py-2.5 text-white placeholder-zinc-400 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-colors resize-none"
+                    className={`w-full bg-surface_container_high border rounded-xl px-4 py-2.5 text-white placeholder-zinc-400 focus:outline-none focus:ring-1 transition-colors resize-none ${researchGoalTouched && !researchGoal.trim() ? 'border-red-500/60 focus:border-red-500 focus:ring-red-500/30' : 'border-[#161f33] focus:border-primary/50 focus:ring-primary/50'}`}
                     placeholder="Describe what this topic focuses on to get keyword suggestions..."
                   />
+                  {researchGoalTouched && !researchGoal.trim() && (
+                    <p className="mt-1.5 text-xs text-red-400">Topic goal is required.</p>
+                  )}
                 </div>
 
-                <button
-                  type="button"
-                  onClick={handleSuggestKeywords}
-                  disabled={isGeneratingKeywords || !researchGoal.trim()}
-                  className="flex w-fit items-center gap-2 bg-primary-gradient shadow-[0_4px_20px_-4px_rgba(167,165,255,0.4)] hover:shadow-[0_4px_24px_-4px_rgba(167,165,255,0.6)] text-white px-5 py-2.5 rounded-xl font-medium transition-all disabled:opacity-50 disabled:shadow-none disabled:cursor-not-allowed text-sm"
-                >
-                  {isGeneratingKeywords ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-                  {isGeneratingKeywords ? 'Generating...' : 'Suggest Keywords'}
-                </button>
+                <div>
+                  <p className="text-xs font-medium text-zinc-100 mb-2">Keywords <span className="text-red-400">*</span></p>
+                  <button
+                    type="button"
+                    onClick={handleSuggestKeywords}
+                    disabled={isGeneratingKeywords || !researchGoal.trim()}
+                    className="flex w-fit items-center gap-2 bg-primary-gradient shadow-[0_4px_20px_-4px_rgba(167,165,255,0.4)] hover:shadow-[0_4px_24px_-4px_rgba(167,165,255,0.6)] text-white px-5 py-2.5 rounded-xl font-medium transition-all disabled:opacity-50 disabled:shadow-none disabled:cursor-not-allowed text-sm"
+                  >
+                    {isGeneratingKeywords ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                    {isGeneratingKeywords ? 'Generating...' : 'Suggest Keywords'}
+                  </button>
 
-                {suggestedKeywords.length > 0 && (
-                  <div className="pt-2">
-                    <p className="text-xs font-medium text-zinc-300 mb-2">Click to select keywords for paper discovery:</p>
-                    <div className="flex flex-wrap gap-2">
-                      {suggestedKeywords.map(kw => (
+                  {suggestedKeywords.length > 0 && (
+                    <div className="pt-3">
+                      <p className="text-xs text-zinc-400 mb-2">Click to select keywords for paper discovery:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {suggestedKeywords.map(kw => (
+                          <button
+                            key={kw}
+                            type="button"
+                            onClick={() => { toggleKeyword(kw); setKeywordsTouched(true); }}
+                            className={`px-3 py-1.5 rounded-lg text-sm transition-all border ${
+                              selectedKeywords.has(kw)
+                                ? 'bg-primary-gradient border-white/40 ring-2 ring-white text-white shadow-lg'
+                                : 'bg-surface_container_high border-zinc-600 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500'
+                            }`}
+                          >
+                            {kw}
+                          </button>
+                        ))}
+                      </div>
+                      {/* Custom keyword input */}
+                      <div className="flex gap-2 mt-3">
+                        <input
+                          type="text"
+                          value={customKeyword}
+                          onChange={(e) => setCustomKeyword(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddCustomKeyword(); } }}
+                          className="flex-1 bg-surface_container_high border border-[#161f33] rounded-xl px-4 py-2 text-white placeholder-zinc-400 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 text-sm transition-colors"
+                          placeholder="Add custom keyword..."
+                        />
                         <button
-                          key={kw}
                           type="button"
-                          onClick={() => toggleKeyword(kw)}
-                          className={`px-3 py-1.5 rounded-lg text-sm transition-all border ${
-                            selectedKeywords.has(kw)
-                              ? 'bg-primary-gradient border-white/40 ring-2 ring-white text-white shadow-lg'
-                              : 'bg-surface_container_high border-zinc-600 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500'
-                          }`}
+                          onClick={handleAddCustomKeyword}
+                          disabled={!customKeyword.trim()}
+                          className="px-3 py-2 bg-surface_container_high hover:bg-surface_bright border border-[#161f33] text-zinc-300 hover:text-white rounded-xl text-sm transition-colors disabled:opacity-50"
                         >
-                          {kw}
+                          <Plus size={16} />
                         </button>
-                      ))}
+                      </div>
                     </div>
-                    {/* Custom keyword input */}
-                    <div className="flex gap-2 mt-3">
-                      <input
-                        type="text"
-                        value={customKeyword}
-                        onChange={(e) => setCustomKeyword(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddCustomKeyword(); } }}
-                        className="flex-1 bg-surface_container_high border border-[#161f33] rounded-xl px-4 py-2 text-white placeholder-zinc-400 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 text-sm transition-colors"
-                        placeholder="Add custom keyword..."
-                      />
-                      <button
-                        type="button"
-                        onClick={handleAddCustomKeyword}
-                        disabled={!customKeyword.trim()}
-                        className="px-3 py-2 bg-surface_container_high hover:bg-surface_bright border border-[#161f33] text-zinc-300 hover:text-white rounded-xl text-sm transition-colors disabled:opacity-50"
-                      >
-                        <Plus size={16} />
-                      </button>
-                    </div>
-                  </div>
-                )}
+                  )}
+                  {keywordsTouched && selectedKeywords.size === 0 && (
+                    <p className="mt-1.5 text-xs text-red-400">Please select at least one keyword.</p>
+                  )}
+                </div>
               </div>
 
               {/* Categories & Year Range */}
@@ -387,9 +426,9 @@ export default function NewTopicModal({ isOpen, onClose, projectId, onTopicCreat
                     }
                   }}
                 >
-                  <label htmlFor="category-search" className="block text-sm font-medium text-zinc-100 mb-1.5">arXiv Categories</label>
+                  <label htmlFor="category-search" className="block text-sm font-medium text-zinc-100 mb-1.5">arXiv Categories <span className="text-red-400">*</span></label>
                   <div
-                    className="w-full min-h-[44px] bg-surface_container_high border border-[#161f33] rounded-xl px-2 py-1.5 flex flex-wrap gap-1.5 items-center cursor-text transition-colors focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/50"
+                    className={`w-full min-h-[44px] bg-surface_container_high border rounded-xl px-2 py-1.5 flex flex-wrap gap-1.5 items-center cursor-text transition-colors focus-within:ring-1 ${categoriesTouched && selectedCategories.size === 0 ? 'border-red-500/60 focus-within:border-red-500 focus-within:ring-red-500/30' : 'border-[#161f33] focus-within:border-primary/50 focus-within:ring-primary/50'}`}
                   >
                     {Array.from(selectedCategories).map(catId => (
                       <span key={catId} className="bg-surface_container border border-zinc-700 text-white text-xs px-2 py-1 rounded-md flex items-center gap-1.5">
@@ -404,6 +443,7 @@ export default function NewTopicModal({ isOpen, onClose, projectId, onTopicCreat
                       value={categorySearch}
                       onChange={(e) => { setCategorySearch(e.target.value); if (!isCategoryDropdownOpen) setIsCategoryDropdownOpen(true); }}
                       onFocus={() => setIsCategoryDropdownOpen(true)}
+                      onBlur={() => setCategoriesTouched(true)}
                       id="category-search"
                       className="flex-1 bg-transparent border-none text-white placeholder-zinc-400 focus:outline-none focus:ring-0 text-sm min-w-[120px] px-2 py-1"
                       placeholder={selectedCategories.size === 0 ? 'Search categories...' : ''}
@@ -420,7 +460,7 @@ export default function NewTopicModal({ isOpen, onClose, projectId, onTopicCreat
                             <button
                               key={id}
                               type="button"
-                              onClick={() => { toggleCategory(id); setCategorySearch(''); }}
+                              onClick={() => { toggleCategory(id); setCategorySearch(''); setCategoriesTouched(true); }}
                               className={`px-4 py-2.5 text-left text-sm hover:bg-surface_container transition-colors flex justify-between items-center ${isSelected ? 'bg-surface_container text-white' : 'text-zinc-100'}`}
                             >
                               <span>{name}</span>
@@ -430,10 +470,13 @@ export default function NewTopicModal({ isOpen, onClose, projectId, onTopicCreat
                         })}
                     </div>
                   )}
+                  {categoriesTouched && selectedCategories.size === 0 && (
+                    <p className="mt-1.5 text-xs text-red-400">Please select at least one category.</p>
+                  )}
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label htmlFor="year-from" className="block text-sm font-medium text-zinc-100 mb-1.5">Year From</label>
+                    <label htmlFor="year-from" className="block text-sm font-medium text-zinc-100 mb-1.5">Year From <span className="text-red-400">*</span></label>
                     <input
                       id="year-from"
                       type="text"
@@ -442,12 +485,16 @@ export default function NewTopicModal({ isOpen, onClose, projectId, onTopicCreat
                       maxLength={4}
                       value={yearFrom}
                       onChange={(e) => setYearFrom(e.target.value.replaceAll(/\D/g, ''))}
-                      className="w-full bg-surface_container_high border border-[#161f33] rounded-xl px-4 py-2.5 text-white placeholder-zinc-400 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 text-sm"
+                      onBlur={() => setYearFromTouched(true)}
+                      className={`w-full bg-surface_container_high border rounded-xl px-4 py-2.5 text-white placeholder-zinc-400 focus:outline-none focus:ring-1 text-sm ${yearFromTouched && !yearFrom.trim() ? 'border-red-500/60 focus:border-red-500 focus:ring-red-500/30' : 'border-[#161f33] focus:border-primary/50 focus:ring-primary/50'}`}
                       placeholder="2020"
                     />
+                    {yearFromTouched && !yearFrom.trim() && (
+                      <p className="mt-1.5 text-xs text-red-400">Required.</p>
+                    )}
                   </div>
                   <div>
-                    <label htmlFor="year-to" className="block text-sm font-medium text-zinc-100 mb-1.5">Year To</label>
+                    <label htmlFor="year-to" className="block text-sm font-medium text-zinc-100 mb-1.5">Year To <span className="text-red-400">*</span></label>
                     <input
                       id="year-to"
                       type="text"
@@ -456,9 +503,13 @@ export default function NewTopicModal({ isOpen, onClose, projectId, onTopicCreat
                       maxLength={4}
                       value={yearTo}
                       onChange={(e) => setYearTo(e.target.value.replaceAll(/\D/g, ''))}
-                      className="w-full bg-surface_container_high border border-[#161f33] rounded-xl px-4 py-2.5 text-white placeholder-zinc-400 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 text-sm"
+                      onBlur={() => setYearToTouched(true)}
+                      className={`w-full bg-surface_container_high border rounded-xl px-4 py-2.5 text-white placeholder-zinc-400 focus:outline-none focus:ring-1 text-sm ${yearToTouched && !yearTo.trim() ? 'border-red-500/60 focus:border-red-500 focus:ring-red-500/30' : 'border-[#161f33] focus:border-primary/50 focus:ring-primary/50'}`}
                       placeholder="2025"
                     />
+                    {yearToTouched && !yearTo.trim() && (
+                      <p className="mt-1.5 text-xs text-red-400">Required.</p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -476,7 +527,7 @@ export default function NewTopicModal({ isOpen, onClose, projectId, onTopicCreat
               <button
                 type="button"
                 onClick={handleSaveTopic}
-                disabled={isSaving || !topicName.trim()}
+                disabled={isSaving}
                 className="bg-primary-gradient text-white px-6 py-2.5 rounded-xl font-medium shadow-[0_4px_20px_-4px_rgba(167,165,255,0.4)] hover:shadow-[0_4px_24px_-4px_rgba(167,165,255,0.6)] disabled:opacity-50 transition-all flex items-center gap-2"
               >
                 {isSaving ? <Loader2 size={18} className="animate-spin" /> : null}

@@ -39,7 +39,6 @@ export default function NewProjectModal({ isOpen, onClose }: NewProjectModalProp
   const [suggestedKeywords, setSuggestedKeywords] = useState<string[]>([]);
   const [selectedKeywords, setSelectedKeywords] = useState<Set<string>>(new Set());
 
-  // Other optional fields
   const [categorySearch, setCategorySearch] = useState('');
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
   const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
@@ -48,6 +47,14 @@ export default function NewProjectModal({ isOpen, onClose }: NewProjectModalProp
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+
+  // Validation touched states
+  const [nameTouched, setNameTouched] = useState(false);
+  const [researchGoalTouched, setResearchGoalTouched] = useState(false);
+  const [keywordsTouched, setKeywordsTouched] = useState(false);
+  const [categoriesTouched, setCategoriesTouched] = useState(false);
+  const [yearFromTouched, setYearFromTouched] = useState(false);
+  const [yearToTouched, setYearToTouched] = useState(false);
 
   const [step, setStep] = useState<1 | 2>(1);
   const [createdProjectId, setCreatedProjectId] = useState<string | null>(null);
@@ -195,8 +202,17 @@ export default function NewProjectModal({ isOpen, onClose }: NewProjectModalProp
         setName('');
         setDescription('');
         setResearchGoal('');
+        setNameTouched(false);
+        setResearchGoalTouched(false);
+        setKeywordsTouched(false);
+        setCategoriesTouched(false);
+        setYearFromTouched(false);
+        setYearToTouched(false);
+        setSuggestedKeywords([]);
         setSelectedKeywords(new Set());
         setSelectedCategories(new Set());
+        setYearFrom('');
+        setYearTo('');
         setSuggestedPapers([]);
         setAcceptedPaperIds(new Set());
         setUploadedDocs([]);
@@ -249,8 +265,23 @@ export default function NewProjectModal({ isOpen, onClose }: NewProjectModalProp
     setSelectedCategories(newSet);
   };
 
+  const isFormValid =
+    name.trim() &&
+    researchGoal.trim() &&
+    selectedKeywords.size > 0 &&
+    selectedCategories.size > 0 &&
+    yearFrom.trim() &&
+    yearTo.trim();
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setNameTouched(true);
+    setResearchGoalTouched(true);
+    setKeywordsTouched(true);
+    setCategoriesTouched(true);
+    setYearFromTouched(true);
+    setYearToTouched(true);
+    if (!isFormValid) return;
     setError('');
     setIsSubmitting(true);
     try {
@@ -307,16 +338,19 @@ export default function NewProjectModal({ isOpen, onClose }: NewProjectModalProp
             {error && <div className="p-3 bg-red-500/10 text-red-400 border border-red-500/20 rounded-lg text-sm">{error}</div>}
 
           <div>
-            <label htmlFor="project-name-input" className="block text-sm font-medium text-zinc-100 mb-1.5">Project Name *</label>
+            <label htmlFor="project-name-input" className="block text-sm font-medium text-zinc-100 mb-1.5">Project Name <span className="text-red-400">*</span></label>
             <input
               id="project-name-input"
-              required
               type="text"
               value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full bg-surface_container_high border border-[#161f33] rounded-xl px-4 py-2.5 text-white placeholder-zinc-400 focus:outline-none focus:border-zinc-500 focus:ring-1 focus:ring-zinc-500 transition-colors"
+              onChange={(e) => { setName(e.target.value); if (nameTouched) setNameTouched(true); }}
+              onBlur={() => setNameTouched(true)}
+              className={`w-full bg-surface_container_high border rounded-xl px-4 py-2.5 text-white placeholder-zinc-400 focus:outline-none focus:ring-1 transition-colors ${nameTouched && !name.trim() ? 'border-red-500/60 focus:border-red-500 focus:ring-red-500/30' : 'border-[#161f33] focus:border-zinc-500 focus:ring-zinc-500'}`}
               placeholder="Retrieval Augmented Generation"
             />
+            {nameTouched && !name.trim() && (
+              <p className="mt-1.5 text-xs text-red-400">Project name is required.</p>
+            )}
           </div>
 
           <div>
@@ -333,48 +367,58 @@ export default function NewProjectModal({ isOpen, onClose }: NewProjectModalProp
 
           <div className="p-4 bg-surface_container_low border border-[#161f33] rounded-xl space-y-4">
             <div>
-               <label htmlFor="project-research-goal" className="block text-sm font-medium text-zinc-100 mb-1.5">Research Goal</label>
+               <label htmlFor="project-research-goal" className="block text-sm font-medium text-zinc-100 mb-1.5">Research Goal <span className="text-red-400">*</span></label>
                <textarea
                  id="project-research-goal"
                  value={researchGoal}
                  onChange={(e) => setResearchGoal(e.target.value)}
+                 onBlur={() => setResearchGoalTouched(true)}
                  rows={2}
-                 className="w-full bg-surface_container_high border border-[#161f33] rounded-xl px-4 py-2.5 text-white placeholder-zinc-400 focus:outline-none focus:border-zinc-500 focus:ring-1 focus:ring-zinc-500 transition-colors resize-none"
+                 className={`w-full bg-surface_container_high border rounded-xl px-4 py-2.5 text-white placeholder-zinc-400 focus:outline-none focus:ring-1 transition-colors resize-none ${researchGoalTouched && !researchGoal.trim() ? 'border-red-500/60 focus:border-red-500 focus:ring-red-500/30' : 'border-[#161f33] focus:border-zinc-500 focus:ring-zinc-500'}`}
                  placeholder="What exactly are you researching? We can use this to suggest relevant keywords."
                />
+               {researchGoalTouched && !researchGoal.trim() && (
+                 <p className="mt-1.5 text-xs text-red-400">Research goal is required.</p>
+               )}
             </div>
             
-            <button
-              type="button"
-              onClick={handleSuggestKeywords}
-              disabled={isGeneratingKeywords || !researchGoal.trim()}
-              className="flex w-fit items-center gap-2 bg-primary-gradient shadow-[0_4px_20px_-4px_rgba(167,165,255,0.4)] hover:shadow-[0_4px_24px_-4px_rgba(167,165,255,0.6)] text-white px-5 py-2.5 rounded-xl font-medium transition-all disabled:opacity-50 disabled:shadow-none disabled:cursor-not-allowed text-sm"
-            >
-              {isGeneratingKeywords ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} className="text-white" />}
-              {isGeneratingKeywords ? 'Generating...' : 'Suggest Keywords'}
-            </button>
+            <div>
+              <p className="text-xs font-medium text-zinc-100 mb-2">Keywords <span className="text-red-400">*</span></p>
+              <button
+                type="button"
+                onClick={handleSuggestKeywords}
+                disabled={isGeneratingKeywords || !researchGoal.trim()}
+                className="flex w-fit items-center gap-2 bg-primary-gradient shadow-[0_4px_20px_-4px_rgba(167,165,255,0.4)] hover:shadow-[0_4px_24px_-4px_rgba(167,165,255,0.6)] text-white px-5 py-2.5 rounded-xl font-medium transition-all disabled:opacity-50 disabled:shadow-none disabled:cursor-not-allowed text-sm"
+              >
+                {isGeneratingKeywords ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} className="text-white" />}
+                {isGeneratingKeywords ? 'Generating...' : 'Suggest Keywords'}
+              </button>
 
-            {suggestedKeywords.length > 0 && (
-              <div className="pt-2">
-                <p className="text-xs font-medium text-zinc-300 mb-2">Click to select keywords for your search query:</p>
-                <div className="flex flex-wrap gap-2">
-                  {suggestedKeywords.map(kw => (
-                    <button
-                      key={kw}
-                      type="button"
-                      onClick={() => toggleKeyword(kw)}
-                      className={`px-3 py-1.5 rounded-lg text-sm transition-all border ${
-                        selectedKeywords.has(kw)
-                          ? 'bg-primary-gradient border-white/40 ring-2 ring-white text-white shadow-lg'
-                          : 'bg-surface_container_high border-zinc-600 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500'
-                      }`}
-                    >
-                      {kw}
-                    </button>
-                  ))}
+              {suggestedKeywords.length > 0 && (
+                <div className="pt-3">
+                  <p className="text-xs text-zinc-400 mb-2">Click to select keywords for your search query:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {suggestedKeywords.map(kw => (
+                      <button
+                        key={kw}
+                        type="button"
+                        onClick={() => { toggleKeyword(kw); setKeywordsTouched(true); }}
+                        className={`px-3 py-1.5 rounded-lg text-sm transition-all border ${
+                          selectedKeywords.has(kw)
+                            ? 'bg-primary-gradient border-white/40 ring-2 ring-white text-white shadow-lg'
+                            : 'bg-surface_container_high border-zinc-600 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500'
+                        }`}
+                      >
+                        {kw}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+              {keywordsTouched && selectedKeywords.size === 0 && (
+                <p className="mt-1.5 text-xs text-red-400">Please select at least one keyword.</p>
+              )}
+            </div>
           </div>
 
           <div className={`grid grid-cols-1 md:grid-cols-2 gap-4 transition-all duration-300 ${isCategoryDropdownOpen ? 'pb-48' : 'pb-0'}`}>
@@ -386,9 +430,9 @@ export default function NewProjectModal({ isOpen, onClose }: NewProjectModalProp
                 }
               }}
             >
-              <label htmlFor="project-category-search" className="block text-sm font-medium text-zinc-100 mb-1.5">arXiv Categories</label>
+              <label htmlFor="project-category-search" className="block text-sm font-medium text-zinc-100 mb-1.5">arXiv Categories <span className="text-red-400">*</span></label>
               <div
-                className="w-full min-h-[44px] bg-surface_container_high border border-[#161f33] rounded-xl px-2 py-1.5 flex flex-wrap gap-1.5 items-center cursor-text transition-colors focus-within:border-zinc-500 focus-within:ring-1 focus-within:ring-zinc-500"
+                className={`w-full min-h-[44px] bg-surface_container_high border rounded-xl px-2 py-1.5 flex flex-wrap gap-1.5 items-center cursor-text transition-colors focus-within:ring-1 ${categoriesTouched && selectedCategories.size === 0 ? 'border-red-500/60 focus-within:border-red-500 focus-within:ring-red-500/30' : 'border-[#161f33] focus-within:border-zinc-500 focus-within:ring-zinc-500'}`}
               >
                 {Array.from(selectedCategories).map(catId => (
                   <span key={catId} className="bg-surface_container border border-zinc-700 text-white text-xs px-2 py-1 rounded-md flex items-center gap-1.5">
@@ -398,7 +442,7 @@ export default function NewProjectModal({ isOpen, onClose }: NewProjectModalProp
                     </button>
                   </span>
                 ))}
-                <input 
+                <input
                   type="text"
                   value={categorySearch}
                   onChange={(e) => {
@@ -406,6 +450,7 @@ export default function NewProjectModal({ isOpen, onClose }: NewProjectModalProp
                     if (!isCategoryDropdownOpen) setIsCategoryDropdownOpen(true);
                   }}
                   onFocus={() => setIsCategoryDropdownOpen(true)}
+                  onBlur={() => setCategoriesTouched(true)}
                   id="project-category-search"
                   className="flex-1 bg-transparent border-none text-white placeholder-zinc-400 focus:outline-none focus:ring-0 text-sm min-w-[120px] px-2 py-1"
                   placeholder={selectedCategories.size === 0 ? "Search categories..." : ""}
@@ -422,7 +467,7 @@ export default function NewProjectModal({ isOpen, onClose }: NewProjectModalProp
                           <button
                             key={id}
                             type="button"
-                            onClick={() => { toggleCategory(id); setCategorySearch(''); }}
+                            onClick={() => { toggleCategory(id); setCategorySearch(''); setCategoriesTouched(true); }}
                             className={`px-4 py-2.5 text-left text-sm hover:bg-surface_container transition-colors flex justify-between items-center ${isSelected ? 'bg-surface_container text-white' : 'text-zinc-100'}`}
                           >
                             <span>{name}</span>
@@ -432,10 +477,13 @@ export default function NewProjectModal({ isOpen, onClose }: NewProjectModalProp
                       })}
                 </div>
               )}
+              {categoriesTouched && selectedCategories.size === 0 && (
+                <p className="mt-1.5 text-xs text-red-400">Please select at least one category.</p>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-4">
                <div>
-                  <label htmlFor="project-year-from" className="block text-sm font-medium text-zinc-100 mb-1.5">Year From</label>
+                  <label htmlFor="project-year-from" className="block text-sm font-medium text-zinc-100 mb-1.5">Year From <span className="text-red-400">*</span></label>
                   <input
                     id="project-year-from"
                     type="text"
@@ -444,12 +492,16 @@ export default function NewProjectModal({ isOpen, onClose }: NewProjectModalProp
                     maxLength={4}
                     value={yearFrom}
                     onChange={(e) => setYearFrom(e.target.value.replaceAll(/\D/g, ''))}
-                    className="w-full bg-surface_container_high border border-[#161f33] rounded-xl px-4 py-2.5 text-white placeholder-zinc-400 focus:outline-none focus:border-zinc-500 focus:ring-1 focus:ring-zinc-500 text-sm"
+                    onBlur={() => setYearFromTouched(true)}
+                    className={`w-full bg-surface_container_high border rounded-xl px-4 py-2.5 text-white placeholder-zinc-400 focus:outline-none focus:ring-1 text-sm ${yearFromTouched && !yearFrom.trim() ? 'border-red-500/60 focus:border-red-500 focus:ring-red-500/30' : 'border-[#161f33] focus:border-zinc-500 focus:ring-zinc-500'}`}
                     placeholder="2020"
                   />
+                  {yearFromTouched && !yearFrom.trim() && (
+                    <p className="mt-1.5 text-xs text-red-400">Required.</p>
+                  )}
                </div>
                <div>
-                  <label htmlFor="project-year-to" className="block text-sm font-medium text-zinc-100 mb-1.5">Year To</label>
+                  <label htmlFor="project-year-to" className="block text-sm font-medium text-zinc-100 mb-1.5">Year To <span className="text-red-400">*</span></label>
                   <input
                     id="project-year-to"
                     type="text"
@@ -458,9 +510,13 @@ export default function NewProjectModal({ isOpen, onClose }: NewProjectModalProp
                     maxLength={4}
                     value={yearTo}
                     onChange={(e) => setYearTo(e.target.value.replaceAll(/\D/g, ''))}
-                    className="w-full bg-surface_container_high border border-[#161f33] rounded-xl px-4 py-2.5 text-white placeholder-zinc-400 focus:outline-none focus:border-zinc-500 focus:ring-1 focus:ring-zinc-500 text-sm"
+                    onBlur={() => setYearToTouched(true)}
+                    className={`w-full bg-surface_container_high border rounded-xl px-4 py-2.5 text-white placeholder-zinc-400 focus:outline-none focus:ring-1 text-sm ${yearToTouched && !yearTo.trim() ? 'border-red-500/60 focus:border-red-500 focus:ring-red-500/30' : 'border-[#161f33] focus:border-zinc-500 focus:ring-zinc-500'}`}
                     placeholder="2024"
                   />
+                  {yearToTouched && !yearTo.trim() && (
+                    <p className="mt-1.5 text-xs text-red-400">Required.</p>
+                  )}
                </div>
             </div>
           </div>
@@ -476,7 +532,7 @@ export default function NewProjectModal({ isOpen, onClose }: NewProjectModalProp
              </button>
              <button
                type="submit"
-               disabled={isSubmitting || !name.trim()}
+               disabled={isSubmitting}
                className="bg-primary-gradient text-white px-6 py-2.5 rounded-xl font-medium shadow-[0_4px_20px_-4px_rgba(167,165,255,0.4)] hover:shadow-[0_4px_24px_-4px_rgba(167,165,255,0.6)] disabled:opacity-50 transition-all flex items-center gap-2"
              >
                {isSubmitting ? <Loader2 size={18} className="animate-spin" /> : null}

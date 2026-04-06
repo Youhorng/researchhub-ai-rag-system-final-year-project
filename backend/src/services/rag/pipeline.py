@@ -186,7 +186,7 @@ async def run_rag_pipeline(
             "query": user_query,
             "project_id": str(project_id) if project_id else "",
             "research_goal": project.research_goal if project else "General scientific literature.",
-            "initial_keywords": project.initial_keywords if project else [],
+            "initial_keywords": project.initial_keywords or [] if project else [],
             "conversation_history": [
                 {"role": msg.role, "content": msg.content} for msg in history
             ],
