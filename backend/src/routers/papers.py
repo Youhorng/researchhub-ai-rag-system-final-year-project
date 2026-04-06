@@ -95,7 +95,7 @@ async def add_paper_from_explore(
     db.commit()
     db.refresh(project_paper)
 
-    if paper.pdf_url and not paper.chunks_indexed:
+    if paper.pdf_url:
         background_tasks.add_task(index_paper_chunks, paper.id, project_id)
 
     return project_paper
@@ -247,7 +247,7 @@ async def update_paper_status(
     # Schedule full-text indexing when a paper is accepted
     if data.status == "accepted":
         paper = project_paper.paper
-        if paper.pdf_url and not paper.chunks_indexed:
+        if paper.pdf_url:
             logger.info(
                 "Scheduling full-text indexing for paper %s (project %s)",
                 paper_id, project_id,
