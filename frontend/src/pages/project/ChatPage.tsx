@@ -4,7 +4,7 @@ import { useAuth } from '@clerk/react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
-  Sparkles, SendHorizontal, Plus, Loader2, MessageSquare, BookOpen, X, ChevronRight, Trash2
+  Sparkles, SendHorizontal, Plus, Loader2, MessageSquare, BookOpen, X, ChevronRight, Trash2, AlertCircle
 } from 'lucide-react';
 
 interface ChatSession {
@@ -115,6 +115,9 @@ export default function ChatPage() {
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
   const [sessionToDelete, setSessionToDelete] = useState<string | null>(null);
 
+  // Error state
+  const [chatError, setChatError] = useState<string | null>(null);
+
   // UI state
   const [showSidebar, setShowSidebar] = useState(() => window.innerWidth >= 768);
   const [showCitations, setShowCitations] = useState(false);
@@ -186,6 +189,7 @@ export default function ChatPage() {
 
   // Create new session
   const handleNewSession = async () => {
+    setChatError(null);
     try {
       const token = await getToken();
       const res = await fetch(`${apiUrl}/projects/${projectId}/chat/sessions`, {
@@ -193,6 +197,11 @@ export default function ChatPage() {
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ title: null })
       });
+      if (res.status === 429) {
+        const data = await res.json();
+        setChatError(data.detail ?? 'Daily session limit reached (5 per day)');
+        return;
+      }
       if (res.ok) {
         const session = await res.json();
         setSessions(prev => [session, ...prev]);
@@ -206,6 +215,7 @@ export default function ChatPage() {
 
   // Create a session inline (used when sending first message without an active session)
   const createNewSession = async (): Promise<string | null> => {
+    setChatError(null);
     try {
       const token = await getToken();
       const res = await fetch(`${apiUrl}/projects/${projectId}/chat/sessions`, {
@@ -213,6 +223,11 @@ export default function ChatPage() {
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ title: null })
       });
+      if (res.status === 429) {
+        const data = await res.json();
+        setChatError(data.detail ?? 'Daily session limit reached (5 per day)');
+        return null;
+      }
       if (res.ok) {
         const session = await res.json();
         setSessions(prev => [session, ...prev]);
@@ -269,6 +284,7 @@ export default function ChatPage() {
 
     const userMessage = inputValue.trim();
     setInputValue('');
+    setChatError(null);
     setIsStreaming(true);
     setStreamingContent('');
     setStreamingCitations([]);
@@ -292,6 +308,13 @@ export default function ChatPage() {
         body: JSON.stringify({ content: userMessage })
       });
 
+      if (res.status === 429) {
+        const data = await res.json();
+        setChatError(data.detail ?? 'Message limit reached (20 per session)');
+        setMessages(prev => prev.filter(m => m.id !== optimisticUserMsg.id));
+        setIsStreaming(false);
+        return;
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
       const reader = res.body?.getReader();
@@ -608,6 +631,12 @@ export default function ChatPage() {
 
             {/* Input area */}
             <div className="p-4 border-t border-[#161f33] flex-shrink-0">
+              {chatError && (
+                <div className="flex items-center gap-2 mb-3 px-3 py-2 bg-red-500/10 border border-red-500/20 rounded-xl text-sm text-red-400">
+                  <AlertCircle size={14} className="flex-shrink-0" />
+                  {chatError}
+                </div>
+              )}
               <form onSubmit={handleSendMessage} className="relative">
                   <textarea
                     ref={inputRef}
