@@ -13,8 +13,10 @@ def create(
     minio_key: str,
     file_size_bytes: int,
     mime_type: str,
+    id: uuid.UUID | None = None,
 ) -> Document:
     doc = Document(
+        id=id or uuid.uuid4(),
         project_id=project_id,
         title=title,
         original_filename=original_filename,

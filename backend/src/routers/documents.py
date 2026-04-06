@@ -65,9 +65,10 @@ async def upload_document(
     minio = get_minio_client()
     upload_file(minio, minio_key, file_bytes, file_size, file.content_type)
 
-    # Save document record in Postgres
+    # Save document record in Postgres using the same doc_id as the MinIO key
     document = document_repo.create(
         db=db,
+        id=doc_id,
         project_id=project_id,
         title=file.filename or "Untitled",
         original_filename=file.filename or "unknown.pdf",
@@ -76,10 +77,6 @@ async def upload_document(
         file_size_bytes=file_size,
         mime_type=file.content_type,
     )
-    # Override the auto-generated id with our pre-generated one so the key matches
-    document.id = doc_id
-    db.commit()
-    db.refresh(document)
 
     # Increment project document count
     project.document_count += 1
