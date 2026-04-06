@@ -13,6 +13,7 @@ class PaperResponse(BaseModel):
     categories: list[str]
     published_at: date | None
     pdf_url: str | None
+    chunks_indexed: bool
 
     model_config = ConfigDict(from_attributes=True)
 

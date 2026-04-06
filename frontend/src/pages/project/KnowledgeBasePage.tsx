@@ -15,6 +15,7 @@ interface Paper {
   categories: string[];
   published_at: string | null;
   pdf_url: string | null;
+  chunks_indexed: boolean;
 }
 
 interface Topic {
@@ -160,6 +161,25 @@ export default function KnowledgeBasePage() {
     };
     if (projectId) fetchPapers();
   }, [projectId, getToken, apiUrl]);
+
+  // Poll while any accepted paper is still indexing (chunks_indexed = false)
+  useEffect(() => {
+    const stillIndexing = papers.some(pp => pp.status === 'accepted' && !pp.paper.chunks_indexed);
+    if (!stillIndexing || !projectId) return;
+    const interval = setInterval(async () => {
+      try {
+        const token = await getToken();
+        const res = await fetch(`${apiUrl}/projects/${projectId}/papers`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const updated = await res.json();
+          setPapers(updated);
+        }
+      } catch { /* ignore poll errors */ }
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [papers, projectId, getToken, apiUrl]);
 
   // Fetch documents
   useEffect(() => {
@@ -466,6 +486,17 @@ export default function KnowledgeBasePage() {
                     <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 bg-indigo-500/10 text-indigo-400 rounded-md border border-indigo-500/20">
                       <Tag size={10} />
                       {getTopicName(pp.topic_id)}
+                    </span>
+                  )}
+                  {pp.paper.chunks_indexed ? (
+                    <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 bg-emerald-500/10 text-emerald-400 rounded-md border border-emerald-500/20">
+                      <CheckCircle2 size={10} />
+                      Indexed
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 bg-amber-500/10 text-amber-400 rounded-md border border-amber-500/20">
+                      <Loader2 size={10} className="animate-spin" />
+                      Indexing...
                     </span>
                   )}
                 </div>

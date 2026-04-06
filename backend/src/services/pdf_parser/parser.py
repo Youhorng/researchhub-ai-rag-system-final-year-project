@@ -8,6 +8,15 @@ logger = logging.getLogger(__name__)
 
 MAX_PAGES = 40
 
+# Browser-like User-Agent so arXiv and other academic sites serve PDFs to server IPs.
+# Without this, arXiv returns 403 or redirects to an HTML page on cloud provider IPs.
+_DOWNLOAD_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    )
+}
+
 
 def parse_pdf_from_url(pdf_url: str, max_pages: int = MAX_PAGES) -> str:
     """Download a PDF from a URL and extract text using PyMuPDF.
@@ -24,7 +33,7 @@ def parse_pdf_from_url(pdf_url: str, max_pages: int = MAX_PAGES) -> str:
     """
     try:
         logger.info("Downloading PDF from %s", pdf_url)
-        with httpx.Client(timeout=60.0, follow_redirects=True) as client:
+        with httpx.Client(timeout=120.0, follow_redirects=True, headers=_DOWNLOAD_HEADERS) as client:
             response = client.get(pdf_url)
             response.raise_for_status()
 

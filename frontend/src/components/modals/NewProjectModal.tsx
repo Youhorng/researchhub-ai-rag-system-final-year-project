@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@clerk/react';
-import { X, Sparkles, Loader2, Upload, CheckCircle2, FileUp, FileText, Trash2 } from 'lucide-react';
+import { X, Sparkles, Loader2, Upload, CheckCircle2, FileUp, FileText, Trash2, XCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const ARXIV_CATEGORIES_MAP: Record<string, string> = {
@@ -120,6 +120,22 @@ export default function NewProjectModal({ isOpen, onClose }: NewProjectModalProp
     }
   };
 
+  const handleRejectPaper = async (paperId: string) => {
+    setSuggestedPapers(prev => prev.filter(p => p.id !== paperId));
+    setAcceptedPaperIds(prev => { const s = new Set(prev); s.delete(paperId); return s; });
+    try {
+      const token = await getToken();
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+      await fetch(`${apiUrl}/projects/${createdProjectId}/papers/${paperId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ status: 'rejected' })
+      });
+    } catch (err) {
+      console.error("Failed to reject paper", err);
+    }
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0 || !createdProjectId) return;
@@ -165,32 +181,6 @@ export default function NewProjectModal({ isOpen, onClose }: NewProjectModalProp
 
   const finishAndClose = async () => {
     setIsFinishing(true);
-    
-    // Optimistically clean up unselected papers
-    if (createdProjectId && suggestedPapers.length > 0) {
-      try {
-        const token = await getToken();
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
-        
-        // Find all papers that were suggested but not accepted
-        const unselectedPapers = suggestedPapers.filter(p => !acceptedPaperIds.has(p.id));
-        
-        // Wait for all PATCH requests to reject them to complete
-        const rejectionPromises = unselectedPapers.map(paper =>
-          fetch(`${apiUrl}/projects/${createdProjectId}/papers/${paper.id}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ status: 'rejected' })
-          })
-        );
-        
-        if (rejectionPromises.length > 0) {
-          await Promise.allSettled(rejectionPromises);
-        }
-      } catch (err) {
-        console.error("Failed to reject unused papers", err);
-      }
-    }
 
     setIsFinishing(false);
     onClose();
@@ -567,20 +557,38 @@ export default function NewProjectModal({ isOpen, onClose }: NewProjectModalProp
                            return (
                              <div key={paper.id} className={`p-4 rounded-xl border transition-colors ${isAccepted ? 'bg-primary/10 border-primary/30' : 'bg-surface_container_high border-[#161f33]'}`}>
                                <div className="flex justify-between items-start gap-4">
-                                 <div>
+                                 <div className="flex-1 min-w-0">
                                    <h4 className="text-sm font-bold text-white leading-snug mb-1">{paper.title}</h4>
                                    {paper.abstract && (
                                      <p className="text-xs text-zinc-400 line-clamp-2 mt-1.5">{paper.abstract}</p>
                                    )}
                                  </div>
-                                 <button
-                                   type="button"
-                                   onClick={() => handleTogglePaper(paper.id)}
-                                   className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-all flex items-center gap-1.5 border ${isAccepted ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/30' : 'bg-surface_container hover:bg-surface_container_highest border-zinc-700 text-zinc-300 hover:text-white'}`}
-                                 >
-                                   {isAccepted ? <CheckCircle2 size={14} /> : <FileUp size={14} />}
-                                   {isAccepted ? 'Added' : 'Add'}
-                                 </button>
+                                 <div className="flex flex-col gap-1.5 flex-shrink-0">
+                                   {!isAccepted && (
+                                     <button
+                                       type="button"
+                                       onClick={() => handleRejectPaper(paper.id)}
+                                       className="px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-all flex items-center gap-1.5 border bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/20"
+                                     >
+                                       <XCircle size={14} />
+                                       Reject
+                                     </button>
+                                   )}
+                                   <button
+                                     type="button"
+                                     onClick={() => handleTogglePaper(paper.id)}
+                                     className={`px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-all flex items-center gap-1.5 border ${isAccepted ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/30' : 'bg-surface_container hover:bg-surface_container_highest border-zinc-700 text-zinc-300 hover:text-white'}`}
+                                   >
+                                     {isAccepted ? <CheckCircle2 size={14} /> : <FileUp size={14} />}
+                                     {isAccepted ? 'Added' : 'Add'}
+                                   </button>
+                                   {isAccepted && (
+                                     <span className="flex items-center gap-1 text-[10px] text-amber-400 justify-center">
+                                       <Loader2 size={10} className="animate-spin" />
+                                       Indexing...
+                                     </span>
+                                   )}
+                                 </div>
                                </div>
                              </div>
                            );
