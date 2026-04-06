@@ -181,10 +181,23 @@ async def run_rag_pipeline(
         history = history[:-1] if history else []
 
         # 3. Run LangGraph agent (guardrail → retrieve → grade → rewrite)
+        # Collect accepted paper UUIDs for this project so the retrieve node
+        # can filter chunks by paper_id instead of project_id.
+        if project_id:
+            accepted_papers = (
+                db.query(ProjectPaper)
+                .filter(ProjectPaper.project_id == project_id, ProjectPaper.status == "accepted")
+                .all()
+            )
+            paper_ids = [str(pp.paper_id) for pp in accepted_papers]
+        else:
+            paper_ids = []
+
         graph = build_retrieval_graph(os_client, trace)
         agent_state = {
             "query": user_query,
             "project_id": str(project_id) if project_id else "",
+            "paper_ids": paper_ids,
             "research_goal": project.research_goal if project else "General scientific literature.",
             "initial_keywords": project.initial_keywords or [] if project else [],
             "conversation_history": [

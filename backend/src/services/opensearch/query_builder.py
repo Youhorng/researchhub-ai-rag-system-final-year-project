@@ -7,12 +7,28 @@ settings = get_settings()
 def build_chunk_search_query(
     query_text: str,
     query_vector: list[float],
+    paper_ids: list[str] | None = None,
     project_id: str | None = None,
     size: int = 8,
 ) -> dict:
-    """Build a hybrid BM25 + k-NN query for the chunks index, optionally scoped to a project."""
+    """Build a hybrid BM25 + k-NN query for the chunks index.
 
-    filter_clause = [{"term": {"project_id": project_id}}] if project_id else []
+    Paper chunks are paper-scoped (shared across projects) — filtered by paper_ids.
+    Document chunks are project-scoped — filtered by project_id.
+    A should clause combines both so either type of chunk is returned.
+    """
+
+    should_clauses = []
+    if paper_ids:
+        should_clauses.append({"terms": {"paper_id": paper_ids}})
+    if project_id:
+        should_clauses.append({"term": {"project_id": project_id}})
+
+    filter_clause = (
+        [{"bool": {"should": should_clauses, "minimum_should_match": 1}}]
+        if should_clauses
+        else []
+    )
 
     bm25_query = {
         "bool": {

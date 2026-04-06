@@ -18,6 +18,7 @@ def _search_chunks(
     os_client: OpenSearch,
     query_text: str,
     query_vector: list[float],
+    paper_ids: list[str] | None = None,
     project_id: str | None = None,
     size: int = 8,
 ) -> list[dict]:
@@ -26,6 +27,7 @@ def _search_chunks(
     query = build_chunk_search_query(
         query_text=query_text,
         query_vector=query_vector,
+        paper_ids=paper_ids,
         project_id=project_id,
         size=size,
     )
@@ -48,24 +50,54 @@ def _search_chunks(
     return chunks
 
 
-def _aggregate_project_sources(os_client: OpenSearch, chunk_index: str, project_id: str) -> set:
-    """Return all (field, value) source tuples indexed for the given project."""
-    agg_query = {
-        "size": 0,
-        "query": {"bool": {"filter": [{"term": {"project_id": project_id}}]}},
-        "aggs": {
-            "papers": {"terms": {"field": "paper_id", "size": 50}},
-            "documents": {"terms": {"field": "document_id", "size": 50}},
-        },
-    }
-    agg_resp = os_client.search(index=chunk_index, body=agg_query)
+def _aggregate_project_sources(
+    os_client: OpenSearch,
+    chunk_index: str,
+    paper_ids: list[str],
+    project_id: str | None,
+) -> set:
+    """Return all (field, value) source tuples available for the project.
+
+    Paper sources: aggregated from chunks matching the accepted paper_ids.
+    Document sources: aggregated from chunks scoped to project_id.
+    """
     all_sources: set = set()
-    for bucket in agg_resp.get("aggregations", {}).get("papers", {}).get("buckets", []):
-        if bucket["key"]:
-            all_sources.add(("paper_id", bucket["key"]))
-    for bucket in agg_resp.get("aggregations", {}).get("documents", {}).get("buckets", []):
-        if bucket["key"]:
-            all_sources.add(("document_id", bucket["key"]))
+
+    # Paper sources — filter by accepted paper_ids
+    if paper_ids:
+        agg_query = {
+            "size": 0,
+            "query": {"terms": {"paper_id": paper_ids}},
+            "aggs": {"papers": {"terms": {"field": "paper_id", "size": 100}}},
+        }
+        try:
+            resp = os_client.search(index=chunk_index, body=agg_query)
+            for bucket in resp.get("aggregations", {}).get("papers", {}).get("buckets", []):
+                if bucket["key"]:
+                    all_sources.add(("paper_id", bucket["key"]))
+        except Exception:
+            logger.warning("Failed to aggregate paper sources")
+
+    # Document sources — filter by project_id, exclude paper chunks
+    if project_id:
+        agg_query = {
+            "size": 0,
+            "query": {
+                "bool": {
+                    "filter": [{"term": {"project_id": project_id}}],
+                    "must_not": [{"exists": {"field": "paper_id"}}],
+                }
+            },
+            "aggs": {"documents": {"terms": {"field": "document_id", "size": 50}}},
+        }
+        try:
+            resp = os_client.search(index=chunk_index, body=agg_query)
+            for bucket in resp.get("aggregations", {}).get("documents", {}).get("buckets", []):
+                if bucket["key"]:
+                    all_sources.add(("document_id", bucket["key"]))
+        except Exception:
+            logger.warning("Failed to aggregate document sources")
+
     return all_sources
 
 
@@ -74,24 +106,27 @@ def _fetch_extra_chunks(
     chunk_index: str,
     missing: list,
     query_vector: list[float],
-    project_id: str,
+    project_id: str | None,
 ) -> list[dict]:
     """Fetch best-matching chunks for each missing source."""
     extra_chunks: list[dict] = []
     for field, source_id in missing:
         try:
+            if field == "paper_id":
+                # Paper chunks are global — filter by paper_id only
+                source_filter = {"term": {"paper_id": source_id}}
+            else:
+                # Document chunks are project-scoped
+                source_filter = {"bool": {"filter": [
+                    {"term": {"project_id": project_id}},
+                    {"term": {field: source_id}},
+                ]}}
+
             fill_query = {
                 "size": 2,
                 "query": {
                     "script_score": {
-                        "query": {
-                            "bool": {
-                                "filter": [
-                                    {"term": {"project_id": project_id}},
-                                    {"term": {field: source_id}},
-                                ]
-                            }
-                        },
+                        "query": source_filter,
                         "script": {
                             "source": "knn_score",
                             "lang": "knn",
@@ -118,7 +153,8 @@ def _fill_missing_sources(
     os_client: OpenSearch,
     existing_chunks: list[dict],
     query_vector: list[float],
-    project_id: str,
+    paper_ids: list[str],
+    project_id: str | None,
 ) -> list[dict]:
     """Ensure at least one chunk per paper/document in the project."""
     chunk_index = f"{settings.opensearch.index_name}-{settings.opensearch.chunk_index_suffix}"
@@ -130,7 +166,7 @@ def _fill_missing_sources(
     }
 
     try:
-        all_sources = _aggregate_project_sources(os_client, chunk_index, project_id)
+        all_sources = _aggregate_project_sources(os_client, chunk_index, paper_ids, project_id)
     except Exception:
         logger.exception("Failed to aggregate sources for diversity fill")
         return existing_chunks
@@ -159,14 +195,26 @@ def make_retrieve_node(os_client: OpenSearch, trace):
         embed_span.update(output={"dimensions": len(query_vector), "latency_ms": embed_ms})
         embed_span.end()
 
+        paper_ids = state.get("paper_ids", [])
+        project_id = state.get("project_id") or None
+
         # Retrieve
         t0 = time.time()
         retrieve_span = trace.start_observation(name="retrieve", as_type="retriever", input=query_text)
-        chunks = _search_chunks(os_client, query_text, query_vector, state.get("project_id"), size=15)
+        chunks = _search_chunks(
+            os_client, query_text, query_vector,
+            paper_ids=paper_ids,
+            project_id=project_id,
+            size=15,
+        )
 
         # Ensure coverage across all papers/documents in the project
-        if state.get("project_id"):
-            chunks = _fill_missing_sources(os_client, chunks, query_vector, state["project_id"])
+        if paper_ids or project_id:
+            chunks = _fill_missing_sources(
+                os_client, chunks, query_vector,
+                paper_ids=paper_ids,
+                project_id=project_id,
+            )
 
         retrieve_ms = round((time.time() - t0) * 1000)
         retrieve_span.update(output={"num_chunks": len(chunks), "latency_ms": retrieve_ms})

@@ -24,7 +24,8 @@ def index_paper_chunks(paper_id: uuid.UUID, project_id: uuid.UUID) -> None:
     This is designed to run as a FastAPI BackgroundTask. It creates its own
     DB session and OpenSearch client since it runs outside the request lifecycle.
 
-    Idempotent: skips if paper.chunks_indexed is already True.
+    Chunks are paper-scoped (indexed once globally, shared across all projects).
+    Idempotent: skips if any chunks already exist for this paper_id.
     """
     chunk_index = f"{settings.opensearch.index_name}-{settings.opensearch.chunk_index_suffix}"
 
@@ -35,22 +36,20 @@ def index_paper_chunks(paper_id: uuid.UUID, project_id: uuid.UUID) -> None:
             logger.error("Paper %s not found in DB — skipping indexing", paper_id)
             return
 
-        # Check per-project: the same paper can be indexed for multiple projects,
-        # each with its own project_id in the chunk docs.
+        # Chunks are global per paper — shared across all projects that accept it.
+        # Skip if any chunks already exist for this paper_id (regardless of project).
         os_client = get_opensearch_client()
         existing = os_client.count(
             index=chunk_index,
-            body={"query": {"bool": {"filter": [
-                {"term": {"paper_id": str(paper_id)}},
-                {"term": {"project_id": str(project_id)}},
-            ]}}},
+            body={"query": {"term": {"paper_id": str(paper_id)}}},
         )
         if existing["count"] > 0:
-            logger.info(
-                "Paper %s already indexed for project %s — skipping",
-                paper.arxiv_id, project_id,
-            )
+            logger.info("Paper %s already indexed globally — skipping", paper.arxiv_id)
             os_client.close()
+            if not paper.chunks_indexed:
+                paper.chunks_indexed = True
+                paper.chunks_indexed_at = datetime.now(timezone.utc)
+                db.commit()
             return
 
         if not paper.pdf_url:
@@ -88,10 +87,8 @@ def index_paper_chunks(paper_id: uuid.UUID, project_id: uuid.UUID) -> None:
                     "chunk_text": text,
                     "chunk_vector": vec,
                     "paper_id": str(paper_id),
-                    "project_id": str(project_id),
                     "arxiv_id": paper.arxiv_id,
                     "title": paper.title,
-                    "document_id": str(paper_id),
                 }
                 actions.append({
                     "_index": chunk_index,

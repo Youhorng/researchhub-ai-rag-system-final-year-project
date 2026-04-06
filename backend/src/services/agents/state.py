@@ -7,6 +7,7 @@ class AgentState(TypedDict, total=False):
     # Input
     query: str
     project_id: str
+    paper_ids: list[str]  # UUIDs of accepted papers for the project (for chunk retrieval)
     research_goal: str
     initial_keywords: list[str]
     conversation_history: list[dict]
