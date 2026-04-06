@@ -21,7 +21,7 @@ router = APIRouter(
     tags=["documents"],
 )
 
-MAX_FILE_SIZE = 50 * 1024 * 1024  # 50 MB
+MAX_FILE_SIZE = 5 * 1024 * 1024  # 5 MB
 
 
 @router.post(
@@ -55,7 +55,7 @@ async def upload_document(
     file_size = len(file_bytes)
 
     if file_size > MAX_FILE_SIZE:
-        raise HTTPException(status_code=400, detail="File size exceeds 50 MB limit")
+        raise HTTPException(status_code=400, detail="File size exceeds 5 MB limit")
 
     # Build MinIO key: {project_id}/{document_uuid}/{original_filename}
     doc_id = uuid.uuid4()

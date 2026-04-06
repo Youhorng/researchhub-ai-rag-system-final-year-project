@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime, timezone
 
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
@@ -73,6 +74,23 @@ def list_messages(
         .offset(offset)
         .limit(limit)
         .all()
+    )
+
+
+def count_sessions_today(db: Session, user_id: uuid.UUID) -> int:
+    today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    return (
+        db.query(ChatSession)
+        .filter(ChatSession.user_id == user_id, ChatSession.created_at >= today)
+        .count()
+    )
+
+
+def count_user_messages(db: Session, session_id: uuid.UUID) -> int:
+    return (
+        db.query(ChatMessage)
+        .filter(ChatMessage.session_id == session_id, ChatMessage.role == "user")
+        .count()
     )
 
 

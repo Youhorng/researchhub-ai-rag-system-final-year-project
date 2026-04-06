@@ -806,7 +806,7 @@ export default function KnowledgeBasePage() {
               <>
                 <Upload size={32} className="text-zinc-500 mb-3 group-hover:text-indigo-400 transition-colors" />
                 <p className="text-sm text-white font-medium mb-1">Click or drag PDF files here</p>
-                <p className="text-xs text-zinc-500">Maximum 50MB per file</p>
+                <p className="text-xs text-zinc-500">Maximum 5MB per file</p>
               </>
             )}
           </label>

@@ -50,6 +50,8 @@ async def create_session(
 ):
     """Create a new chat session within a project."""
     _get_project(db, project_id, current_user.id)
+    if chat_repo.count_sessions_today(db, current_user.id) >= 5:
+        raise HTTPException(status_code=429, detail="Daily session limit reached (5 per day)")
     session = chat_repo.create_session(db, project_id, current_user.id, body.title)
     return session
 
@@ -148,6 +150,9 @@ async def send_message(
     session = chat_repo.get_session(db, session_id)
     if not session or session.project_id != project_id:
         raise HTTPException(status_code=404, detail=SESSION_NOT_FOUND)
+
+    if chat_repo.count_user_messages(db, session_id) >= 20:
+        raise HTTPException(status_code=429, detail="Message limit reached (20 per session)")
 
     # Auto-set session title from first message
     if not session.title:
