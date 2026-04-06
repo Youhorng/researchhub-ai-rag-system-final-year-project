@@ -1,4 +1,5 @@
 import logging
+import logging.config
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -19,6 +20,36 @@ from src.routers.analytics import router as analytics_router
 
 # Configure settings and logging
 settings = get_settings()
+
+logging.config.dictConfig({
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "default": {
+            "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "stream": "ext://sys.stdout",
+            "formatter": "default",
+        },
+    },
+    "root": {
+        "level": "INFO",
+        "handlers": ["console"],
+    },
+    # Keep noisy loggers quieter
+    "loggers": {
+        "sqlalchemy.engine": {"level": "WARNING" if not settings.debug else "INFO", "propagate": True},
+        "httpx": {"level": "WARNING", "propagate": True},
+        "httpcore": {"level": "WARNING", "propagate": True},
+        "langfuse": {"level": "WARNING", "propagate": True},
+        "uvicorn.access": {"level": "WARNING", "propagate": True},
+    },
+})
+
 logger = logging.getLogger(__name__)
 
 # Define the context manager for the application

@@ -16,6 +16,7 @@ interface Paper {
   published_at: string | null;
   pdf_url: string | null;
   chunks_indexed: boolean;
+  chunks_indexing_failed: boolean;
 }
 
 interface Topic {
@@ -162,9 +163,11 @@ export default function KnowledgeBasePage() {
     if (projectId) fetchPapers();
   }, [projectId, getToken, apiUrl]);
 
-  // Poll while any accepted paper is still indexing (chunks_indexed = false)
+  // Poll while any accepted paper is still indexing (chunks_indexed = false and not failed)
   useEffect(() => {
-    const stillIndexing = papers.some(pp => pp.status === 'accepted' && !pp.paper.chunks_indexed);
+    const stillIndexing = papers.some(
+      pp => pp.status === 'accepted' && !pp.paper.chunks_indexed && !pp.paper.chunks_indexing_failed
+    );
     if (!stillIndexing || !projectId) return;
     const interval = setInterval(async () => {
       try {
@@ -492,6 +495,11 @@ export default function KnowledgeBasePage() {
                     <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 bg-emerald-500/10 text-emerald-400 rounded-md border border-emerald-500/20">
                       <CheckCircle2 size={10} />
                       Indexed
+                    </span>
+                  ) : pp.paper.chunks_indexing_failed ? (
+                    <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 bg-red-500/10 text-red-400 rounded-md border border-red-500/20" title="Indexing failed — PDF could not be processed">
+                      <XCircle size={10} />
+                      Index failed
                     </span>
                   ) : (
                     <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 bg-amber-500/10 text-amber-400 rounded-md border border-amber-500/20">

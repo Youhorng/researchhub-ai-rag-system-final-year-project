@@ -14,6 +14,7 @@ class PaperResponse(BaseModel):
     published_at: date | None
     pdf_url: str | None
     chunks_indexed: bool
+    chunks_indexing_failed: bool
 
     model_config = ConfigDict(from_attributes=True)
 

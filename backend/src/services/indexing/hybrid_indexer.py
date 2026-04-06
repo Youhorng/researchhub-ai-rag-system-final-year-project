@@ -39,6 +39,12 @@ def index_paper_chunks(paper_id: uuid.UUID, project_id: uuid.UUID) -> None:
         # Chunks are global per paper — shared across all projects that accept it.
         # Skip if any chunks already exist for this paper_id (regardless of project).
         os_client = get_opensearch_client()
+
+        # Reset failure flag if retrying
+        if paper.chunks_indexing_failed:
+            paper.chunks_indexing_failed = False
+            db.commit()
+
         existing = os_client.count(
             index=chunk_index,
             body={"query": {"term": {"paper_id": str(paper_id)}}},
@@ -122,6 +128,14 @@ def index_paper_chunks(paper_id: uuid.UUID, project_id: uuid.UUID) -> None:
 
     except Exception:
         logger.exception("Failed to index paper %s", paper_id)
-        db.rollback()
+        try:
+            db.rollback()
+            paper = db.query(Paper).filter(Paper.id == paper_id).first()
+            if paper:
+                paper.chunks_indexing_failed = True
+                db.commit()
+        except Exception:
+            logger.exception("Failed to mark paper %s as indexing_failed", paper_id)
+            db.rollback()
     finally:
         db.close()

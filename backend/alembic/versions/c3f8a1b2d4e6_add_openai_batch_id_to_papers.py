@@ -19,7 +19,12 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.add_column('papers', sa.Column('openai_batch_id', sa.String(255), nullable=True))
+    conn = op.get_bind()
+    result = conn.execute(
+        sa.text("SELECT 1 FROM information_schema.columns WHERE table_name='papers' AND column_name='openai_batch_id'")
+    )
+    if not result.fetchone():
+        op.add_column('papers', sa.Column('openai_batch_id', sa.String(255), nullable=True))
 
 
 def downgrade() -> None:

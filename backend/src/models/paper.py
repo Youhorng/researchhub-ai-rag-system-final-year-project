@@ -62,6 +62,12 @@ class Paper(Base, TimestampMixin):
         Boolean, nullable=False, default=False
     )
 
+    # True when the background indexing task failed (e.g. PDF download error, embedding API error).
+    # Distinguishes "indexing in progress" from "indexing permanently failed".
+    chunks_indexing_failed: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False
+    )
+
     # Timestamps for when each indexing step completed.
     # Null means "not yet indexed". Useful for debugging and monitoring.
     metadata_indexed_at: Mapped[datetime | None] = mapped_column(
