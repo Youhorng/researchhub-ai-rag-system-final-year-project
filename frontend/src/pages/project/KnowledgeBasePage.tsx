@@ -103,6 +103,7 @@ export default function KnowledgeBasePage() {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [isDocsLoading, setIsDocsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -265,6 +266,14 @@ export default function KnowledgeBasePage() {
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
+    setUploadError(null);
+    const MAX_SIZE = 5 * 1024 * 1024;
+    const oversized = Array.from(files).find(f => f.size > MAX_SIZE);
+    if (oversized) {
+      setUploadError(`"${oversized.name}" exceeds the 5MB limit.`);
+      e.target.value = '';
+      return;
+    }
     setIsUploading(true);
     const token = await getToken();
     if (!token) { setIsUploading(false); return; }
@@ -810,6 +819,13 @@ export default function KnowledgeBasePage() {
               </>
             )}
           </label>
+
+          {uploadError && (
+            <p className="text-sm text-red-400 flex items-center gap-1.5">
+              <XCircle size={14} />
+              {uploadError}
+            </p>
+          )}
 
           {/* Document list */}
           {docsListContent}
