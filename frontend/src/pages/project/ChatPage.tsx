@@ -4,7 +4,7 @@ import { useAuth } from '@clerk/react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
-  Sparkles, SendHorizontal, Plus, Loader2, MessageSquare, BookOpen, X, ChevronRight, Trash2, AlertCircle
+  Sparkles, SendHorizontal, Square, Plus, Loader2, MessageSquare, BookOpen, X, ChevronRight, Trash2, AlertCircle
 } from 'lucide-react';
 
 interface ChatSession {
@@ -125,11 +125,20 @@ export default function ChatPage() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, streamingContent]);
+
+  // Auto-resize textarea
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+  }, [inputValue]);
 
   // Fetch sessions
   useEffect(() => {
@@ -302,10 +311,13 @@ export default function ChatPage() {
 
     try {
       const token = await getToken();
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
       const res = await fetch(`${apiUrl}/projects/${projectId}/chat/sessions/${sessionId}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ content: userMessage })
+        body: JSON.stringify({ content: userMessage }),
+        signal: controller.signal,
       });
 
       if (res.status === 429) {
@@ -342,13 +354,33 @@ export default function ChatPage() {
           s.id === sessionId ? { ...s, title: userMessage.slice(0, 80) } : s
         ));
       }
-    } catch (err) {
+    } catch (err: unknown) {
+      // Ignore user-initiated aborts
+      if (err instanceof Error && err.name === 'AbortError') return;
       console.error('Failed to send message', err);
       setStreamingContent('');
     } finally {
       setIsStreaming(false);
       inputRef.current?.focus();
     }
+  };
+
+  // Stop streaming and commit partial response
+  const handleStopStreaming = () => {
+    abortControllerRef.current?.abort();
+    setIsStreaming(false);
+    if (streamingContent) {
+      setMessages(prev => [...prev, {
+        id: `assistant-${Date.now()}`,
+        session_id: activeSessionId || '',
+        role: 'assistant',
+        content: streamingContent,
+        cited_sources: streamingCitations.length > 0 ? streamingCitations : null,
+        created_at: new Date().toISOString(),
+      }]);
+    }
+    setStreamingContent('');
+    setStreamingCitations([]);
   };
 
   // Handle textarea key events
@@ -448,7 +480,7 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="relative flex h-[calc(100vh-7.5rem)] gap-0 animate-in fade-in duration-300">
+    <div className="relative flex h-[calc(100dvh-7.5rem)] gap-0 animate-in fade-in duration-300">
       {/* Sessions Sidebar */}
       {showSidebar && (
         <>
@@ -505,19 +537,18 @@ export default function ChatPage() {
         <div className="flex-1 flex overflow-hidden">
           {/* Messages area */}
           <div className="flex-1 flex flex-col min-w-0">
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide">
+            <div className="flex-1 overflow-y-auto scrollbar-hide">
               {messages.length === 0 && !isStreaming && !isLoadingMessages ? (
                 /* Welcome state */
-                <div className="flex-1 flex flex-col items-center justify-center h-full text-center px-4">
-                  <div className="p-4 bg-primary/10 rounded-2xl mb-6 border border-primary/20">
-                    <Sparkles size={32} className="text-primary" />
+                <div className="flex flex-col items-center justify-center min-h-full py-12 px-4 text-center animate-in fade-in duration-500">
+                  <div className="p-4 bg-primary/10 rounded-2xl mb-5 border border-primary/20 shadow-[0_0_32px_-8px_rgba(167,165,255,0.2)]">
+                    <Sparkles size={28} className="text-primary" />
                   </div>
-                  <h2 className="text-xl font-bold text-white mb-2">Research Assistant</h2>
-                  <p className="text-zinc-400 text-sm max-w-md mb-8">
-                    Ask questions about the papers and documents in your knowledge base.
-                    I'll search through your indexed content and provide sourced answers.
+                  <h2 className="text-lg font-semibold text-white mb-2">Research Assistant</h2>
+                  <p className="text-zinc-400 text-sm max-w-sm mb-8 leading-relaxed">
+                    Ask questions about your indexed papers and documents. I'll find and cite relevant sources.
                   </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-lg w-full">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full max-w-lg">
                     {[
                       'List all the papers in my knowledge base',
                       'What are the main results and conclusions from each paper?',
@@ -526,11 +557,8 @@ export default function ChatPage() {
                     ].map((suggestion) => (
                       <button
                         key={suggestion}
-                        onClick={() => {
-                          setInputValue(suggestion);
-                          inputRef.current?.focus();
-                        }}
-                        className="text-left p-3 bg-surface_container_high hover:bg-surface_bright border border-[#161f33] rounded-xl text-xs text-zinc-300 hover:text-white transition-colors"
+                        onClick={() => { setInputValue(suggestion); inputRef.current?.focus(); }}
+                        className="text-left px-4 py-3 bg-surface_container_high hover:bg-surface_bright border border-[#161f33] hover:border-primary/20 rounded-xl text-xs text-zinc-400 hover:text-zinc-200 transition-all leading-relaxed"
                       >
                         {suggestion}
                       </button>
@@ -538,59 +566,55 @@ export default function ChatPage() {
                   </div>
                 </div>
               ) : (
-                <>
+                <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
                   {isLoadingMessages ? (
                     <div className="flex justify-center py-8">
                       <Loader2 size={24} className="animate-spin text-zinc-500" />
                     </div>
                   ) : (
                     messages.map(msg => (
-                      <div
-                        key={msg.id}
-                        className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                      >
-                        {msg.role === 'assistant' && (
-                          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 mt-1">
-                            <Sparkles size={14} className="text-primary" />
+                      msg.role === 'user' ? (
+                        <div key={msg.id} className="message-animate flex justify-end">
+                          <div className="max-w-[80%] px-4 py-3 rounded-2xl rounded-br-sm bg-primary-gradient text-white text-sm leading-relaxed">
+                            <div className="whitespace-pre-wrap">{msg.content}</div>
                           </div>
-                        )}
-                        <div className={`max-w-[85%] md:max-w-[75%] ${msg.role === 'user' ? 'order-first' : ''}`}>
-                          <div
-                            className={`px-4 py-3 rounded-2xl text-sm leading-relaxed ${
-                              msg.role === 'user'
-                                ? 'bg-primary-gradient text-white rounded-br-md'
-                                : 'bg-surface_container_high text-zinc-200 rounded-bl-md'
-                            }`}
-                          >
-                            {msg.role === 'assistant' ? renderMarkdown(msg.content) : <div className="whitespace-pre-wrap">{msg.content}</div>}
-                          </div>
-                          {msg.role === 'assistant' && msg.cited_sources && msg.cited_sources.length > 0 && (() => {
-                            const sources = msg.cited_sources;
-                            const unique = deduplicateCitations(sources);
-                            return (
-                              <button
-                                onClick={() => handleShowCitations(sources)}
-                                className="flex items-center gap-1.5 mt-2 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
-                              >
-                                <BookOpen size={12} />
-                                {unique.length === 1 ? '1 source' : `${unique.length} sources`}
-                                <ChevronRight size={12} />
-                              </button>
-                            );
-                          })()}
                         </div>
-                      </div>
+                      ) : (
+                        <div key={msg.id} className="message-animate flex gap-3">
+                          <div className="w-7 h-7 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                            <Sparkles size={13} className="text-primary" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm leading-relaxed text-zinc-200">
+                              {renderMarkdown(msg.content)}
+                            </div>
+                            {msg.cited_sources && msg.cited_sources.length > 0 && (() => {
+                              const unique = deduplicateCitations(msg.cited_sources);
+                              return (
+                                <button
+                                  onClick={() => handleShowCitations(msg.cited_sources!)}
+                                  className="flex items-center gap-1.5 mt-2 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                                >
+                                  <BookOpen size={12} />
+                                  {unique.length === 1 ? '1 source' : `${unique.length} sources`}
+                                  <ChevronRight size={12} />
+                                </button>
+                              );
+                            })()}
+                          </div>
+                        </div>
+                      )
                     ))
                   )}
 
                   {/* Streaming message */}
                   {isStreaming && streamingContent && (
-                    <div className="flex gap-3 justify-start">
-                      <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 mt-1">
-                        <Sparkles size={14} className="text-primary animate-pulse" />
+                    <div className="flex gap-3">
+                      <div className="w-7 h-7 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <Sparkles size={13} className="text-primary animate-pulse" />
                       </div>
-                      <div className="max-w-[85%] md:max-w-[75%]">
-                        <div className="px-4 py-3 rounded-2xl rounded-bl-md bg-surface_container_high text-zinc-200 text-sm leading-relaxed">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm leading-relaxed text-zinc-200 streaming-cursor">
                           {renderMarkdown(streamingContent)}
                         </div>
                         {streamingCitations.length > 0 && (() => {
@@ -610,57 +634,73 @@ export default function ChatPage() {
                     </div>
                   )}
 
-                  {/* Streaming indicator without content yet */}
+                  {/* Thinking indicator — before first chunk arrives */}
                   {isStreaming && !streamingContent && (
-                    <div className="flex gap-3 justify-start">
-                      <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 mt-1">
-                        <Sparkles size={14} className="text-primary animate-pulse" />
+                    <div className="flex gap-3">
+                      <div className="w-7 h-7 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0">
+                        <Sparkles size={13} className="text-primary animate-pulse" />
                       </div>
-                      <div className="px-4 py-3 rounded-2xl rounded-bl-md bg-surface_container_high">
-                        <div className="flex items-center gap-2 text-zinc-400 text-sm">
-                          <Loader2 size={14} className="animate-spin" />
-                          Thinking...
-                        </div>
+                      <div className="flex items-center gap-1.5 pt-1.5">
+                        <span className="thinking-dot" />
+                        <span className="thinking-dot" />
+                        <span className="thinking-dot" />
                       </div>
                     </div>
                   )}
-                </>
+
+                  <div ref={messagesEndRef} />
+                </div>
               )}
-              <div ref={messagesEndRef} />
+              {/* Scroll anchor for welcome state */}
+              {messages.length === 0 && <div ref={messagesEndRef} />}
             </div>
 
             {/* Input area */}
-            <div className="p-4 border-t border-[#161f33] flex-shrink-0">
+            <div className="flex-shrink-0 px-4 pb-4 pt-2" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
               {chatError && (
-                <div className="flex items-center gap-2 mb-3 px-3 py-2 bg-red-500/10 border border-red-500/20 rounded-xl text-sm text-red-400">
+                <div className="max-w-3xl mx-auto flex items-center gap-2 mb-3 px-3 py-2 bg-red-500/10 border border-red-500/20 rounded-xl text-sm text-red-400">
                   <AlertCircle size={14} className="flex-shrink-0" />
                   {chatError}
                 </div>
               )}
-              <form onSubmit={handleSendMessage} className="relative">
-                  <textarea
-                    ref={inputRef}
-                    value={inputValue}
-                    onChange={(e) => setInputValue(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    placeholder="Ask about your research..."
-                    rows={1}
-                    className="block w-full bg-surface_container_high border border-[#161f33] rounded-xl px-4 py-3 pr-14 text-white placeholder-zinc-400 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 text-sm transition-colors resize-none max-h-32 overflow-y-auto"
-                    style={{ minHeight: '44px' }}
-                    disabled={isStreaming}
-                  />
-                <button
-                  type="submit"
-                  disabled={isStreaming || !inputValue.trim()}
-                  aria-label={isStreaming ? 'Generating response' : 'Send message'}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center justify-center w-8 h-8 bg-primary-gradient text-white rounded-lg shadow-[0_4px_20px_-4px_rgba(167,165,255,0.4)] hover:shadow-[0_4px_24px_-4px_rgba(167,165,255,0.6)] transition-all disabled:opacity-50"
-                >
-                  {isStreaming ? <Loader2 size={16} className="animate-spin" /> : <SendHorizontal size={16} />}
-                </button>
-              </form>
-              <p className="text-[10px] text-zinc-400 mt-2 text-center">
-                AI answers are based on your indexed papers and documents. Always verify important claims.
-              </p>
+              <div className="max-w-3xl mx-auto">
+                <form onSubmit={handleSendMessage}>
+                  <div className="flex items-center gap-2 bg-surface_container_high border border-[#161f33] rounded-2xl px-4 py-3 focus-within:border-primary/40 focus-within:ring-1 focus-within:ring-primary/20 transition-all shadow-lg">
+                    <textarea
+                      ref={inputRef}
+                      value={inputValue}
+                      onChange={(e) => setInputValue(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      placeholder="Ask about your research..."
+                      rows={1}
+                      className="flex-1 bg-transparent text-white placeholder-zinc-500 focus:outline-none text-sm leading-5 resize-none overflow-y-auto self-center"
+                      style={{ minHeight: '20px', maxHeight: '160px' }}
+                    />
+                    {isStreaming ? (
+                      <button
+                        type="button"
+                        onClick={handleStopStreaming}
+                        className="flex-shrink-0 flex items-center justify-center w-8 h-8 bg-surface_container border border-zinc-600 text-zinc-300 hover:text-white hover:border-zinc-400 rounded-lg transition-all"
+                        aria-label="Stop generating"
+                      >
+                        <Square size={14} />
+                      </button>
+                    ) : (
+                      <button
+                        type="submit"
+                        disabled={!inputValue.trim()}
+                        aria-label="Send message"
+                        className="flex-shrink-0 flex items-center justify-center w-8 h-8 bg-primary-gradient text-white rounded-lg shadow-[0_4px_20px_-4px_rgba(167,165,255,0.4)] hover:shadow-[0_4px_24px_-4px_rgba(167,165,255,0.6)] transition-all disabled:opacity-40"
+                      >
+                        <SendHorizontal size={15} />
+                      </button>
+                    )}
+                  </div>
+                </form>
+                <p className="text-[10px] text-zinc-500 mt-2 text-center">
+                  AI answers are based on your indexed papers · Shift+Enter for new line
+                </p>
+              </div>
             </div>
           </div>
 

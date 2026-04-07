@@ -78,7 +78,7 @@ export default function ProjectLayout() {
         <div className={`h-14 border-b border-[#161f33] flex items-center px-4 ${isSidebarOpen ? 'justify-between' : 'justify-center'} flex-shrink-0 w-full`}>
           {isSidebarOpen && (
              <div className="flex items-center gap-3">
-               <img src="/main_logo.webp" alt="Logo" className="w-8 h-8 object-contain rounded-lg shadow-sm flex-shrink-0" />
+               <img src="/main_logo.webp" alt="Logo" className="w-10 h-10 object-contain rounded-lg shadow-sm flex-shrink-0" />
                <div className="flex flex-col">
                  <span className="font-bold text-base text-white leading-tight tracking-tight">ResearchHub</span>
                  <span className="text-[9px] font-bold text-primary tracking-widest uppercase mt-0.5">Project View</span>
