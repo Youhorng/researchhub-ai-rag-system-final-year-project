@@ -1,3 +1,5 @@
+import uuid
+
 from sqlalchemy.orm import Session
 from src.models.paper import Paper, ProjectPaper
 
@@ -5,18 +7,18 @@ from src.models.paper import Paper, ProjectPaper
 # Define a function to get paper from opensearch
 def get_or_create(db: Session, arxiv_data: dict) -> Paper:
     """Get an existing paper by arxiv_id or create a new one."""
-    
+
     # Check if the paper is already in our Postgres database
     existing_paper = db.query(Paper).filter(Paper.arxiv_id == arxiv_data["arxiv_id"]).first()
     if existing_paper:
         return existing_paper
-        
+
     # If not, create a new one from the OpenSearch hit data
     new_paper = Paper(
         arxiv_id=arxiv_data["arxiv_id"],
         title=arxiv_data["title"],
         abstract=arxiv_data.get("abstract", ""),
-        authors=arxiv_data.get("authors", []), 
+        authors=arxiv_data.get("authors", []),
         categories=arxiv_data.get("categories", []),
         published_at=arxiv_data.get("published_at"),
         pdf_url=f"https://arxiv.org/pdf/{arxiv_data['arxiv_id']}.pdf"
@@ -24,8 +26,29 @@ def get_or_create(db: Session, arxiv_data: dict) -> Paper:
     db.add(new_paper)
     db.commit()
     db.refresh(new_paper)
-    
+
     return new_paper
+
+
+def get_by_arxiv_ids(db: Session, arxiv_ids: list[str]) -> dict[str, Paper]:
+    """Batch fetch papers by arxiv_id. Returns a dict keyed by arxiv_id."""
+    papers = db.query(Paper).filter(Paper.arxiv_id.in_(arxiv_ids)).all()
+    return {p.arxiv_id: p for p in papers}
+
+
+def get_project_papers_by_paper_ids(
+    db: Session, project_id: uuid.UUID, paper_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, ProjectPaper]:
+    """Batch fetch ProjectPaper links for a project. Returns a dict keyed by paper_id."""
+    links = (
+        db.query(ProjectPaper)
+        .filter(
+            ProjectPaper.project_id == project_id,
+            ProjectPaper.paper_id.in_(paper_ids),
+        )
+        .all()
+    )
+    return {link.paper_id: link for link in links}
 
 
 def get_project_paper(db: Session, project_id, paper_id) -> ProjectPaper | None:

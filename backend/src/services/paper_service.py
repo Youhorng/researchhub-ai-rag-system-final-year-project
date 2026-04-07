@@ -8,6 +8,7 @@ from src.config import get_settings
 from src.models.project import Project
 from src.models.paper import Paper, ProjectPaper
 from src.repositories import paper_repo, project_repo
+from src.repositories.paper_repo import get_by_arxiv_ids, get_project_papers_by_paper_ids
 from src.services.embeddings.openai import get_embeddings
 from src.services.opensearch.client import get_opensearch_client
 from src.services.opensearch.query_builder import build_hybrid_search_query
@@ -61,32 +62,58 @@ def search_and_suggest_papers(
         logger.error("OpenSearch query failed: %s", e)
         return []
 
-    # Extract the hits and save to Postgres
-    suggested_papers = []
+    # Extract hits
     hits = response.get("hits", {}).get("hits", [])
-    
-    for hit in hits:
-        source = hit["_source"]
-        relevance_score = hit.get("_score", 0.0)
-        
-        # Save (or retrieve) the paper globally in Postgres
-        paper = paper_repo.get_or_create(db, source)
-        
-        # Skip papers already accepted or rejected for this project
-        existing_link = db.query(ProjectPaper).filter_by(
-            project_id=project.id,
-            paper_id=paper.id
-        ).first()
+    if not hits:
+        return []
 
-        if existing_link and existing_link.status in ("accepted", "rejected"):
+    scores_by_arxiv_id = {h["_source"]["arxiv_id"]: h.get("_score", 0.0) for h in hits}
+    sources_by_arxiv_id = {h["_source"]["arxiv_id"]: h["_source"] for h in hits}
+    arxiv_ids = list(sources_by_arxiv_id.keys())
+
+    # Batch-fetch existing papers; create missing ones in a single flush
+    existing_papers = get_by_arxiv_ids(db, arxiv_ids)
+    new_papers: list[Paper] = []
+    for arxiv_id, source in sources_by_arxiv_id.items():
+        if arxiv_id not in existing_papers:
+            p = Paper(
+                arxiv_id=arxiv_id,
+                title=source["title"],
+                abstract=source.get("abstract", ""),
+                authors=source.get("authors", []),
+                categories=source.get("categories", []),
+                published_at=source.get("published_at"),
+                pdf_url=f"https://arxiv.org/pdf/{arxiv_id}.pdf",
+            )
+            db.add(p)
+            new_papers.append(p)
+
+    if new_papers:
+        db.flush()  # assign IDs without committing
+
+    all_papers: dict[str, Paper] = {**existing_papers}
+    for p in new_papers:
+        all_papers[p.arxiv_id] = p
+
+    # Batch-fetch existing ProjectPaper links
+    paper_ids = [p.id for p in all_papers.values()]
+    existing_links = get_project_papers_by_paper_ids(db, project.id, paper_ids)
+
+    # Build new ProjectPaper rows and collect result
+    suggested_papers: list[Paper] = []
+    for arxiv_id in arxiv_ids:
+        paper = all_papers[arxiv_id]
+        link = existing_links.get(paper.id)
+
+        if link and link.status in ("accepted", "rejected"):
             continue
 
-        if not existing_link:
+        if not link:
             db.add(ProjectPaper(
                 project_id=project.id,
                 paper_id=paper.id,
                 status="suggested",
-                relevance_score=relevance_score,
+                relevance_score=scores_by_arxiv_id[arxiv_id],
                 added_by="starter_pack",
                 topic_id=topic_id,
             ))
@@ -94,7 +121,6 @@ def search_and_suggest_papers(
         suggested_papers.append(paper)
 
     db.commit()
-
     return suggested_papers
 
 
@@ -160,24 +186,54 @@ def discover_papers(
         logger.error("OpenSearch discover query failed: %s", e)
         return []
 
-    suggested_papers = []
-    for hit in response.get("hits", {}).get("hits", []):
-        source = hit["_source"]
-        paper = paper_repo.get_or_create(db, source)
-        existing_link = db.query(ProjectPaper).filter_by(
-            project_id=project.id,
-            paper_id=paper.id,
-        ).first()
+    hits = response.get("hits", {}).get("hits", [])
+    if not hits:
+        return []
 
-        if existing_link and existing_link.status in ("accepted", "rejected"):
+    scores_by_arxiv_id = {h["_source"]["arxiv_id"]: h.get("_score", 0.0) for h in hits}
+    sources_by_arxiv_id = {h["_source"]["arxiv_id"]: h["_source"] for h in hits}
+    arxiv_ids = list(sources_by_arxiv_id.keys())
+
+    existing_papers = get_by_arxiv_ids(db, arxiv_ids)
+    new_papers: list[Paper] = []
+    for arxiv_id, source in sources_by_arxiv_id.items():
+        if arxiv_id not in existing_papers:
+            p = Paper(
+                arxiv_id=arxiv_id,
+                title=source["title"],
+                abstract=source.get("abstract", ""),
+                authors=source.get("authors", []),
+                categories=source.get("categories", []),
+                published_at=source.get("published_at"),
+                pdf_url=f"https://arxiv.org/pdf/{arxiv_id}.pdf",
+            )
+            db.add(p)
+            new_papers.append(p)
+
+    if new_papers:
+        db.flush()
+
+    all_papers: dict[str, Paper] = {**existing_papers}
+    for p in new_papers:
+        all_papers[p.arxiv_id] = p
+
+    paper_ids = [p.id for p in all_papers.values()]
+    existing_links = get_project_papers_by_paper_ids(db, project.id, paper_ids)
+
+    suggested_papers: list[Paper] = []
+    for arxiv_id in arxiv_ids:
+        paper = all_papers[arxiv_id]
+        link = existing_links.get(paper.id)
+
+        if link and link.status in ("accepted", "rejected"):
             continue
 
-        if not existing_link:
+        if not link:
             db.add(ProjectPaper(
                 project_id=project.id,
                 paper_id=paper.id,
                 status="suggested",
-                relevance_score=hit.get("_score", 0.0),
+                relevance_score=scores_by_arxiv_id[arxiv_id],
                 added_by="discovery",
             ))
         suggested_papers.append(paper)

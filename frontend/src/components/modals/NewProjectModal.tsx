@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@clerk/react';
-import { X, Sparkles, Loader2, Upload, CheckCircle2, FileUp, FileText, Trash2, XCircle } from 'lucide-react';
+import { X, Sparkles, Loader2, Upload, CheckCircle2, FileText, Trash2, XCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const ARXIV_CATEGORIES_MAP: Record<string, string> = {
@@ -564,6 +564,14 @@ export default function NewProjectModal({ isOpen, onClose }: NewProjectModalProp
                                    )}
                                  </div>
                                  <div className="flex flex-col gap-1.5 flex-shrink-0">
+                                   <button
+                                     type="button"
+                                     onClick={() => handleTogglePaper(paper.id)}
+                                     className={`px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-all flex items-center gap-1.5 border ${isAccepted ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/30' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20'}`}
+                                   >
+                                     <CheckCircle2 size={14} />
+                                     {isAccepted ? 'Added' : 'Add'}
+                                   </button>
                                    {!isAccepted && (
                                      <button
                                        type="button"
@@ -574,14 +582,6 @@ export default function NewProjectModal({ isOpen, onClose }: NewProjectModalProp
                                        Reject
                                      </button>
                                    )}
-                                   <button
-                                     type="button"
-                                     onClick={() => handleTogglePaper(paper.id)}
-                                     className={`px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-all flex items-center gap-1.5 border ${isAccepted ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/30' : 'bg-surface_container hover:bg-surface_container_highest border-zinc-700 text-zinc-300 hover:text-white'}`}
-                                   >
-                                     {isAccepted ? <CheckCircle2 size={14} /> : <FileUp size={14} />}
-                                     {isAccepted ? 'Added' : 'Add'}
-                                   </button>
                                    {isAccepted && (
                                      <span className="flex items-center gap-1 text-[10px] text-amber-400 justify-center">
                                        <Loader2 size={10} className="animate-spin" />
