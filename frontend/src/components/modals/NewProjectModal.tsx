@@ -583,9 +583,8 @@ export default function NewProjectModal({ isOpen, onClose }: NewProjectModalProp
                                      </button>
                                    )}
                                    {isAccepted && (
-                                     <span className="flex items-center gap-1 text-[10px] text-amber-400 justify-center">
-                                       <Loader2 size={10} className="animate-spin" />
-                                       Indexing...
+                                     <span className="flex items-center gap-1 text-[10px] text-zinc-500 justify-center">
+                                       Queued for indexing
                                      </span>
                                    )}
                                  </div>

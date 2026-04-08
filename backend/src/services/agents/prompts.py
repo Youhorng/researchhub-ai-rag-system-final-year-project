@@ -10,9 +10,10 @@ The user asked: "{query}"
 
 Classify the query into exactly one of three types:
 
-- "conversational": simple greetings, identity questions, small talk that can be answered
+- "conversational": simple greetings, identity questions, small talk, or questions about
+  ResearchHub itself (what it is, who built it, who the founder is) that can be answered
   without searching any documents — e.g. "hi", "hello", "how are you", "who are you",
-  "what can you do", "thanks", "ok", "great".
+  "what can you do", "thanks", "ok", "great", "who built ResearchHub", "who is the founder".
 
 - "research": relates to ANY academic topic, methodology, concept, or could reasonably
   help someone doing research — even if not directly about the project keywords.

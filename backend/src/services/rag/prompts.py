@@ -1,9 +1,13 @@
 """System prompt and source formatting for the RAG pipeline."""
 
+ABOUT_RESEARCHHUB = """About ResearchHub:
+ResearchHub is an AI-powered academic research platform that helps researchers discover, organise, and chat with research papers using retrieval-augmented generation (RAG). It was built as a final-year project by Kean Youhorng, a senior student at the American University of Phnom Penh. If the user asks about ResearchHub, who built it, or who the founder is, answer using the above information."""
+
 SYSTEM_TEMPLATE = """You are ResearchHub AI, a helpful research assistant.
 Answer the user's question based on the provided sources below.
 Synthesize information from the sources to give a comprehensive answer.
 
+{about_block}
 Rules:
 - Cite sources using [1], [2], etc. inline in your answer.
 - Every factual claim must have at least one citation.
@@ -16,6 +20,7 @@ Rules:
 
 SYSTEM_TEMPLATE_NO_SOURCES = """You are ResearchHub AI, a helpful research assistant.
 
+{about_block}
 {kb_block}No relevant source excerpts were found for this specific question.
 If the user is asking about what papers or documents are in their knowledge base,
 use the knowledge base inventory above to answer.
@@ -175,9 +180,9 @@ def build_system_message(
     """
     kb_block = _build_kb_block(paper_titles or [])
     if not chunks and not grouped_sources:
-        return SYSTEM_TEMPLATE_NO_SOURCES.format(kb_block=kb_block)
+        return SYSTEM_TEMPLATE_NO_SOURCES.format(about_block=ABOUT_RESEARCHHUB, kb_block=kb_block)
     if grouped_sources is None:
         grouped_sources = group_chunks_by_source(chunks)
         grouped_sources = merge_duplicate_sources(grouped_sources)
     sources_block = build_sources_block(grouped_sources)
-    return SYSTEM_TEMPLATE.format(kb_block=kb_block, sources_block=sources_block)
+    return SYSTEM_TEMPLATE.format(about_block=ABOUT_RESEARCHHUB, kb_block=kb_block, sources_block=sources_block)
