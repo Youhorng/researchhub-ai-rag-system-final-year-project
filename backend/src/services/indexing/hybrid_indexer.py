@@ -117,6 +117,12 @@ def index_paper_chunks(paper_id: uuid.UUID, project_id: uuid.UUID) -> None:
             "Bulk indexed %d/%d chunks for paper %s (errors: %s)",
             success, len(actions), paper.arxiv_id, errors if errors else "none",
         )
+        if errors:
+            logger.warning("Bulk index errors for paper %s: %s", paper.arxiv_id, errors)
+        if success == 0:
+            raise RuntimeError(
+                f"Bulk index wrote 0/{len(actions)} chunks for paper {paper.arxiv_id}"
+            )
 
         os_client.close()
 

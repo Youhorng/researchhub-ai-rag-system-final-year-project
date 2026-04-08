@@ -100,6 +100,12 @@ def index_document_chunks(document_id: uuid.UUID, project_id: uuid.UUID) -> None
             "Bulk indexed %d/%d chunks for document %s (errors: %s)",
             success, len(actions), document.title, errors if errors else "none",
         )
+        if errors:
+            logger.warning("Bulk index errors for document %s: %s", document.title, errors)
+        if success == 0:
+            raise RuntimeError(
+                f"Bulk index wrote 0/{len(actions)} chunks for document {document.title}"
+            )
 
         os_client.close()
 
