@@ -3,6 +3,8 @@ import { useParams } from 'react-router-dom';
 import { useAuth } from '@clerk/react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
 import {
   Sparkles, SendHorizontal, Square, Plus, Loader2, MessageSquare, BookOpen, X, ChevronRight, Trash2, AlertCircle
 } from 'lucide-react';
@@ -32,40 +34,84 @@ interface ChatMessage {
   created_at: string;
 }
 
-// Preprocess markdown to fix broken numbered lists
-// Handles: "1.\n**Bold:**", "1. \n**Bold:**", "1.\n\n**Bold:**"
-const preprocessMarkdown = (content: string) =>
-  content.replaceAll(/(\d+)\.[^\S\n]*\n+[^\S\n]*\*\*/g, '$1. **');
+// Preprocess markdown to fix formatting issues before passing to ReactMarkdown
+const preprocessMarkdown = (content: string): string => {
+  let result = content;
+  // Fix broken numbered lists: "1.\n**Bold:**" → "1. **Bold:**"
+  result = result.replaceAll(/(\d+)\.[^\S\n]*\n+[^\S\n]*\*\*/g, '$1. **');
+  // Convert \[...\] block math → $$...$$
+  result = result.replaceAll(/\\\[([\s\S]*?)\\\]/g, (_m, inner) => `$$${inner}$$`);
+  // Convert \(...\) inline math → $...$
+  result = result.replaceAll(/\\\(([\s\S]*?)\\\)/g, (_m, inner) => `$${inner}$`);
+  // Convert ( \latex_content ) bare-parenthesis notation → $...$
+  // Only when content contains a LaTeX marker (\cmd, _, ^) to avoid false positives on normal English
+  result = result.replaceAll(
+    /\(\s*((?:[^()]*(?:\\[a-zA-Z]+|[_^])[^()]*)+)\s*\)/g,
+    (_m, inner) => `$${inner.trim()}$`,
+  );
+  return result;
+};
 
 // Render markdown content (module-level to avoid re-creation on each render)
 const renderMarkdown = (content: string) => (
   <ReactMarkdown
-    remarkPlugins={[remarkGfm]}
+    remarkPlugins={[remarkGfm, remarkMath]}
+    rehypePlugins={[rehypeKatex]}
     components={{
-      p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
-      strong: ({ children }) => <strong className="font-semibold text-white">{children}</strong>,
-      em: ({ children }) => <em className="italic">{children}</em>,
-      ul: ({ children }) => <ul className="list-disc list-outside pl-5 mb-2 space-y-1">{children}</ul>,
-      ol: ({ children }) => <ol className="list-decimal list-outside pl-5 mb-2 space-y-1">{children}</ol>,
-      li: ({ children }) => <li className="text-sm">{children}</li>,
-      h1: ({ children }) => <h1 className="text-base font-bold text-white mb-2">{children}</h1>,
-      h2: ({ children }) => <h2 className="text-sm font-bold text-white mb-1.5">{children}</h2>,
-      h3: ({ children }) => <h3 className="text-sm font-semibold text-white mb-1">{children}</h3>,
+      p: ({ children }) => (
+        <p className="mb-4 last:mb-0 leading-7 text-zinc-200">{children}</p>
+      ),
+      strong: ({ children }) => (
+        <strong className="font-semibold text-white">{children}</strong>
+      ),
+      em: ({ children }) => (
+        <em className="italic text-zinc-300">{children}</em>
+      ),
+      ul: ({ children }) => (
+        <ul className="mb-4 pl-6 space-y-1.5 list-disc list-outside">{children}</ul>
+      ),
+      ol: ({ children }) => (
+        <ol className="mb-4 pl-6 space-y-1.5 list-decimal list-outside">{children}</ol>
+      ),
+      li: ({ children }) => (
+        <li className="leading-7 text-zinc-200">{children}</li>
+      ),
+      h1: ({ children }) => (
+        <h2 className="mt-6 mb-2 text-base font-semibold text-white leading-7 first:mt-0">{children}</h2>
+      ),
+      h2: ({ children }) => (
+        <h2 className="mt-6 mb-2 text-base font-semibold text-white leading-7 first:mt-0">{children}</h2>
+      ),
+      h3: ({ children }) => (
+        <h3 className="mt-4 mb-1.5 text-[15px] font-semibold text-white leading-7 first:mt-0">{children}</h3>
+      ),
       code: ({ children, className }) => {
         const isBlock = className?.includes('language-');
         return isBlock ? (
-          <pre className="bg-surface_container_lowest p-3 rounded-lg border border-[#212c43] overflow-x-auto my-2">
-            <code className="text-xs text-zinc-300">{children}</code>
+          <pre className="my-4 rounded-xl border border-[#212c43] bg-[#0d1117] overflow-x-auto">
+            <code className="block p-4 text-sm text-zinc-300 font-mono leading-6">{children}</code>
           </pre>
         ) : (
-          <code className="bg-surface_container_lowest px-1.5 py-0.5 rounded text-xs text-indigo-300 border border-[#212c43]">{children}</code>
+          <code className="bg-surface_container_lowest px-1.5 py-0.5 rounded text-[13px] text-indigo-300 border border-[#212c43] font-mono">{children}</code>
         );
       },
       blockquote: ({ children }) => (
-        <blockquote className="border-l-2 border-indigo-500/40 pl-3 my-2 text-zinc-400 italic">{children}</blockquote>
+        <blockquote className="my-4 border-l-2 border-zinc-600 pl-4 text-zinc-400 italic">{children}</blockquote>
       ),
       a: ({ href, children }) => (
-        <a href={href} target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:text-indigo-300 underline">{children}</a>
+        <a href={href} target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:text-indigo-300 underline underline-offset-2">{children}</a>
+      ),
+      hr: () => <hr className="my-6 border-[#212c43]" />,
+      table: ({ children }) => (
+        <div className="my-4 overflow-x-auto rounded-lg border border-[#212c43]">
+          <table className="w-full text-sm border-collapse">{children}</table>
+        </div>
+      ),
+      th: ({ children }) => (
+        <th className="px-3 py-2 text-left font-semibold text-white border-b border-[#212c43] bg-surface_container_high">{children}</th>
+      ),
+      td: ({ children }) => (
+        <td className="px-3 py-2 text-zinc-300 border-b border-[#212c43] last:border-b-0">{children}</td>
       ),
     }}
   >
@@ -490,13 +536,20 @@ export default function ChatPage() {
             onClick={() => setShowSidebar(false)}
           />
           <div className="absolute md:relative z-30 md:z-auto h-full w-64 flex-shrink-0 bg-surface_container_low border-r border-[#161f33] flex flex-col md:rounded-l-2xl overflow-hidden">
-            <div className="h-16 px-3 border-b border-[#161f33] flex items-center justify-center flex-shrink-0">
+            <div className="h-16 px-3 border-b border-[#161f33] flex items-center gap-2 flex-shrink-0">
               <button
                 onClick={handleNewSession}
-                className="w-4/5 flex items-center justify-center gap-2 bg-primary-gradient text-white py-1.5 px-4 rounded-xl font-medium shadow-[0_4px_20px_-4px_rgba(167,165,255,0.4)] hover:shadow-[0_4px_24px_-4px_rgba(167,165,255,0.6)] transition-all text-sm"
+                className="flex-1 flex items-center justify-center gap-2 bg-primary-gradient text-white py-1.5 px-4 rounded-xl font-medium shadow-[0_4px_20px_-4px_rgba(167,165,255,0.4)] hover:shadow-[0_4px_24px_-4px_rgba(167,165,255,0.6)] transition-all text-sm"
               >
                 <Plus size={16} strokeWidth={2.5} />
                 New Chat
+              </button>
+              <button
+                onClick={() => setShowSidebar(false)}
+                aria-label="Close sidebar"
+                className="md:hidden p-2 rounded-lg text-zinc-400 hover:text-white hover:bg-surface_container_high transition-colors flex-shrink-0"
+              >
+                <X size={18} />
               </button>
             </div>
             <div className="flex-1 overflow-y-auto scrollbar-hide p-2 space-y-1">
@@ -575,7 +628,7 @@ export default function ChatPage() {
                     messages.map(msg => (
                       msg.role === 'user' ? (
                         <div key={msg.id} className="message-animate flex justify-end">
-                          <div className="max-w-[80%] px-4 py-3 rounded-2xl rounded-br-sm bg-primary-gradient text-white text-sm leading-relaxed">
+                          <div className="max-w-[80%] px-4 py-3 rounded-2xl rounded-br-sm bg-primary-gradient text-white text-base leading-relaxed">
                             <div className="whitespace-pre-wrap">{msg.content}</div>
                           </div>
                         </div>
@@ -585,7 +638,7 @@ export default function ChatPage() {
                             <Sparkles size={13} className="text-primary" />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="text-sm leading-relaxed text-zinc-200">
+                            <div className="text-base leading-relaxed text-zinc-200">
                               {renderMarkdown(msg.content)}
                             </div>
                             {msg.cited_sources && msg.cited_sources.length > 0 && (() => {
@@ -614,7 +667,7 @@ export default function ChatPage() {
                         <Sparkles size={13} className="text-primary animate-pulse" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm leading-relaxed text-zinc-200 streaming-cursor">
+                        <div className="text-base leading-relaxed text-zinc-200 streaming-cursor">
                           {renderMarkdown(streamingContent)}
                         </div>
                         {streamingCitations.length > 0 && (() => {

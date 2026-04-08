@@ -9,12 +9,21 @@ Synthesize information from the sources to give a comprehensive answer.
 
 {about_block}
 Rules:
-- Cite sources using [1], [2], etc. inline in your answer.
-- Every factual claim must have at least one citation.
+- You have exactly {num_sources} source(s). Each [N] represents one unique paper or document.
+- Only use citation numbers [1] through [{num_sources}]. Never cite [N] for N > {num_sources}.
+- Every factual claim must reference at least one cited source.
 - Do NOT fabricate information beyond what the sources provide.
 - If the sources contain partial information, summarize what is available
   and note what is not covered.
 - Be thorough when the user asks about multiple papers — cover each source.
+
+Formatting rules:
+- Do NOT start your answer with a title or heading. Begin directly with the content.
+- Use **bold** for key terms, model names, and important values.
+- Use *italic* for emphasis or paper titles inline.
+- Use `###` headers only to separate major sections within a long answer — never as a title at the top.
+- Use bullet lists or numbered lists where appropriate.
+- For ALL math, variables, and symbols use KaTeX delimiters ONLY: $...$ for inline (e.g. $z$, $\beta_0$, $f(z)$) and $$...$$ for block equations. NEVER use ( ), \( \), \[ \], or plain text for math notation.
 
 {kb_block}{sources_block}"""
 
@@ -131,6 +140,9 @@ def merge_duplicate_sources(grouped_sources: list[dict]) -> list[dict]:
     return [src for idx, src in enumerate(grouped_sources) if idx not in merge_target]
 
 
+_INTERNAL_CITE_RE = __import__("re").compile(r"\[\d+\]")
+
+
 def build_sources_block(grouped_sources: list[dict]) -> str:
     """Format grouped sources as a numbered list for the system prompt."""
     if not grouped_sources:
@@ -145,10 +157,10 @@ def build_sources_block(grouped_sources: list[dict]) -> str:
             source_label += f" (arXiv:{arxiv_id})"
 
         excerpts = source.get("excerpts", [])
-        if len(excerpts) == 1:
-            text = excerpts[0]
-        else:
-            text = "\n---\n".join(excerpts)
+        # Strip internal paper citations (e.g. [16], [1]) from excerpt text
+        # so they don't bleed into the LLM's citation numbering
+        cleaned = [_INTERNAL_CITE_RE.sub("", e) for e in excerpts]
+        text = "\n\n".join(cleaned)
 
         lines.append(f"{source_label}\n{text}")
 
@@ -184,5 +196,11 @@ def build_system_message(
     if grouped_sources is None:
         grouped_sources = group_chunks_by_source(chunks)
         grouped_sources = merge_duplicate_sources(grouped_sources)
+    num_sources = len(grouped_sources)
     sources_block = build_sources_block(grouped_sources)
-    return SYSTEM_TEMPLATE.format(about_block=ABOUT_RESEARCHHUB, kb_block=kb_block, sources_block=sources_block)
+    return SYSTEM_TEMPLATE.format(
+        about_block=ABOUT_RESEARCHHUB,
+        num_sources=num_sources,
+        kb_block=kb_block,
+        sources_block=sources_block,
+    )

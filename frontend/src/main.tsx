@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { ClerkProvider } from '@clerk/react'
 import { BrowserRouter, useNavigate } from 'react-router-dom'
 import './index.css'
+import 'katex/dist/katex.min.css'
 import App from './App.tsx'
 
 const CLERK_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY

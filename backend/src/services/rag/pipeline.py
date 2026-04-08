@@ -117,6 +117,15 @@ def _build_cited_sources(grouped_sources: list[dict], full_response: str) -> tup
     for new_idx in range(1, len(cited_sources) + 1):
         renumbered_text = renumbered_text.replace(f"[__CITE_{new_idx}__]", f"[{new_idx}]")
 
+    # Strip any remaining out-of-range [N] citations the LLM hallucinated
+    import re
+    valid_max = len(cited_sources)
+    renumbered_text = re.sub(
+        r'\[(\d+)\]',
+        lambda m: f"[{m.group(1)}]" if 1 <= int(m.group(1)) <= valid_max else "",
+        renumbered_text,
+    )
+
     return cited_sources, renumbered_text
 
 
