@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@clerk/react';
 import { X, Sparkles, Loader2, Upload, CheckCircle2, FileText, Trash2, XCircle } from 'lucide-react';
+import YearSelector from '../ui/YearSelector';
 import { useNavigate } from 'react-router-dom';
 
 const ARXIV_CATEGORIES_MAP: Record<string, string> = {
@@ -255,13 +256,18 @@ export default function NewProjectModal({ isOpen, onClose }: NewProjectModalProp
     setSelectedCategories(newSet);
   };
 
+  const yearFromNum = yearFrom ? parseInt(yearFrom) : null;
+  const yearToNum = yearTo ? parseInt(yearTo) : null;
+  const yearRangeInvalid = yearFromNum !== null && yearToNum !== null && yearFromNum > yearToNum;
+
   const isFormValid =
     name.trim() &&
     researchGoal.trim() &&
     selectedKeywords.size > 0 &&
     selectedCategories.size > 0 &&
     yearFrom.trim() &&
-    yearTo.trim();
+    yearTo.trim() &&
+    !yearRangeInvalid;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -472,42 +478,29 @@ export default function NewProjectModal({ isOpen, onClose }: NewProjectModalProp
               )}
             </div>
             <div className="grid grid-cols-2 gap-4">
-               <div>
-                  <label htmlFor="project-year-from" className="block text-sm font-medium text-zinc-100 mb-1.5">Year From <span className="text-red-400">*</span></label>
-                  <input
+                  <YearSelector
                     id="project-year-from"
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    maxLength={4}
+                    label="Year From"
                     value={yearFrom}
-                    onChange={(e) => setYearFrom(e.target.value.replaceAll(/\D/g, ''))}
+                    onChange={setYearFrom}
                     onBlur={() => setYearFromTouched(true)}
-                    className={`w-full bg-surface_container_high border rounded-xl px-4 py-2.5 text-white placeholder-zinc-400 focus:outline-none focus:ring-1 text-sm ${yearFromTouched && !yearFrom.trim() ? 'border-red-500/60 focus:border-red-500 focus:ring-red-500/30' : 'border-[#161f33] focus:border-zinc-500 focus:ring-zinc-500'}`}
-                    placeholder="2020"
+                    touched={yearFromTouched}
+                    hasError={!yearFrom.trim()}
+                    errorMessage="Required."
+                    placeholder="Select year"
                   />
-                  {yearFromTouched && !yearFrom.trim() && (
-                    <p className="mt-1.5 text-xs text-red-400">Required.</p>
-                  )}
-               </div>
-               <div>
-                  <label htmlFor="project-year-to" className="block text-sm font-medium text-zinc-100 mb-1.5">Year To <span className="text-red-400">*</span></label>
-                  <input
+                  <YearSelector
                     id="project-year-to"
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    maxLength={4}
+                    label="Year To"
                     value={yearTo}
-                    onChange={(e) => setYearTo(e.target.value.replaceAll(/\D/g, ''))}
+                    onChange={setYearTo}
                     onBlur={() => setYearToTouched(true)}
-                    className={`w-full bg-surface_container_high border rounded-xl px-4 py-2.5 text-white placeholder-zinc-400 focus:outline-none focus:ring-1 text-sm ${yearToTouched && !yearTo.trim() ? 'border-red-500/60 focus:border-red-500 focus:ring-red-500/30' : 'border-[#161f33] focus:border-zinc-500 focus:ring-zinc-500'}`}
-                    placeholder="2024"
+                    touched={yearToTouched}
+                    hasError={!yearTo.trim()}
+                    errorMessage="Required."
+                    warningMessage={yearRangeInvalid ? '"Year From" cannot be after "Year To".' : undefined}
+                    placeholder="Select year"
                   />
-                  {yearToTouched && !yearTo.trim() && (
-                    <p className="mt-1.5 text-xs text-red-400">Required.</p>
-                  )}
-               </div>
             </div>
           </div>
 

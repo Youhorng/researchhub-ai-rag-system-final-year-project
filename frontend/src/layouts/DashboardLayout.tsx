@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { UserButton } from '@clerk/react';
-import { Plus, LayoutDashboard, Folder, Compass, Activity, BarChart3, Settings, Menu, Sidebar, X } from 'lucide-react';
+import { Plus, LayoutDashboard, Folder, Compass, Activity, BarChart3, Menu, Sidebar, X } from 'lucide-react';
 import NewProjectModal from '../components/modals/NewProjectModal';
 
 export default function DashboardLayout() {
@@ -134,10 +134,7 @@ export default function DashboardLayout() {
             </button>
           </div>
           <div className="flex items-center gap-6">
-            <button aria-label="Settings" className="text-zinc-400 hover:text-white transition-colors bg-surface_container_high p-2 rounded-full border border-zinc-800">
-              <Settings size={20} />
-            </button>
-            <UserButton 
+            <UserButton
               appearance={{
                 elements: {
                   userButtonAvatarBox: "w-10 h-10 border border-zinc-700 shadow-sm"

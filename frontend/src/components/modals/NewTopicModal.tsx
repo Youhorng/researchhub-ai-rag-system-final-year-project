@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '@clerk/react';
 import { X, Sparkles, Loader2, CheckCircle2, XCircle, Plus } from 'lucide-react';
+import YearSelector from '../ui/YearSelector';
 
 const ARXIV_CATEGORIES_MAP: Record<string, string> = {
   'cs.AI': 'Artificial Intelligence',
@@ -173,13 +175,18 @@ export default function NewTopicModal({ isOpen, onClose, projectId, onTopicCreat
 
   const toggleCategory = (catId: string) => setSelectedCategories(prev => toggleSetItem(prev, catId));
 
+  const yearFromNum = yearFrom ? parseInt(yearFrom) : null;
+  const yearToNum = yearTo ? parseInt(yearTo) : null;
+  const yearRangeInvalid = yearFromNum !== null && yearToNum !== null && yearFromNum > yearToNum;
+
   const isFormValid =
     topicName.trim() &&
     researchGoal.trim() &&
     selectedKeywords.size > 0 &&
     selectedCategories.size > 0 &&
     yearFrom.trim() &&
-    yearTo.trim();
+    yearTo.trim() &&
+    !yearRangeInvalid;
 
   const handleSaveTopic = async () => {
     setTopicNameTouched(true);
@@ -305,7 +312,7 @@ export default function NewTopicModal({ isOpen, onClose, projectId, onTopicCreat
 
   const saveButtonLabel = getSaveLabel(isEditMode, isSaving);
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
       <div
         className="w-full max-w-2xl bg-surface_container border border-[#161f33] rounded-2xl shadow-2xl my-8 mx-auto flex flex-col max-h-[90vh]"
@@ -475,42 +482,29 @@ export default function NewTopicModal({ isOpen, onClose, projectId, onTopicCreat
                   )}
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label htmlFor="year-from" className="block text-sm font-medium text-zinc-100 mb-1.5">Year From <span className="text-red-400">*</span></label>
-                    <input
-                      id="year-from"
-                      type="text"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      maxLength={4}
-                      value={yearFrom}
-                      onChange={(e) => setYearFrom(e.target.value.replaceAll(/\D/g, ''))}
-                      onBlur={() => setYearFromTouched(true)}
-                      className={`w-full bg-surface_container_high border rounded-xl px-4 py-2.5 text-white placeholder-zinc-400 focus:outline-none focus:ring-1 text-sm ${yearFromTouched && !yearFrom.trim() ? 'border-red-500/60 focus:border-red-500 focus:ring-red-500/30' : 'border-[#161f33] focus:border-primary/50 focus:ring-primary/50'}`}
-                      placeholder="2020"
-                    />
-                    {yearFromTouched && !yearFrom.trim() && (
-                      <p className="mt-1.5 text-xs text-red-400">Required.</p>
-                    )}
-                  </div>
-                  <div>
-                    <label htmlFor="year-to" className="block text-sm font-medium text-zinc-100 mb-1.5">Year To <span className="text-red-400">*</span></label>
-                    <input
-                      id="year-to"
-                      type="text"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      maxLength={4}
-                      value={yearTo}
-                      onChange={(e) => setYearTo(e.target.value.replaceAll(/\D/g, ''))}
-                      onBlur={() => setYearToTouched(true)}
-                      className={`w-full bg-surface_container_high border rounded-xl px-4 py-2.5 text-white placeholder-zinc-400 focus:outline-none focus:ring-1 text-sm ${yearToTouched && !yearTo.trim() ? 'border-red-500/60 focus:border-red-500 focus:ring-red-500/30' : 'border-[#161f33] focus:border-primary/50 focus:ring-primary/50'}`}
-                      placeholder="2025"
-                    />
-                    {yearToTouched && !yearTo.trim() && (
-                      <p className="mt-1.5 text-xs text-red-400">Required.</p>
-                    )}
-                  </div>
+                  <YearSelector
+                    id="year-from"
+                    label="Year From"
+                    value={yearFrom}
+                    onChange={setYearFrom}
+                    onBlur={() => setYearFromTouched(true)}
+                    touched={yearFromTouched}
+                    hasError={!yearFrom.trim()}
+                    errorMessage="Required."
+                    placeholder="Select year"
+                  />
+                  <YearSelector
+                    id="year-to"
+                    label="Year To"
+                    value={yearTo}
+                    onChange={setYearTo}
+                    onBlur={() => setYearToTouched(true)}
+                    touched={yearToTouched}
+                    hasError={!yearTo.trim()}
+                    errorMessage="Required."
+                    warningMessage={yearRangeInvalid ? '"Year From" cannot be after "Year To".' : undefined}
+                    placeholder="Select year"
+                  />
                 </div>
               </div>
             </div>
@@ -637,6 +631,7 @@ export default function NewTopicModal({ isOpen, onClose, projectId, onTopicCreat
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
