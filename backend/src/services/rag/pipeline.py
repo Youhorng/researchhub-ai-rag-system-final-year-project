@@ -51,6 +51,7 @@ def _build_chat_messages(
     system_message: str,
     history: list,
     user_query: str,
+    num_sources: int = 0,
 ) -> list[dict]:
     """Build the messages array for the OpenAI chat completion."""
     messages = [{"role": "system", "content": system_message}]
@@ -58,7 +59,15 @@ def _build_chat_messages(
     for msg in history:
         messages.append({"role": msg.role, "content": msg.content})
 
-    messages.append({"role": "user", "content": user_query})
+    # Append citation reminder to the user query so the model sees it last
+    if num_sources > 0:
+        user_content = (
+            f"{user_query}\n\n"
+            f"(Remember: cite every claim with [1]-[{num_sources}] markers.)"
+        )
+    else:
+        user_content = user_query
+    messages.append({"role": "user", "content": user_content})
     return messages
 
 
@@ -263,7 +272,7 @@ async def run_rag_pipeline(
         grouped_sources = merge_duplicate_sources(grouped_sources)
         paper_titles = _collect_kb_titles(db, project_id)
         system_message = build_system_message(chunks, grouped_sources=grouped_sources, paper_titles=paper_titles)
-        messages = _build_chat_messages(system_message, history, user_query)
+        messages = _build_chat_messages(system_message, history, user_query, num_sources=len(grouped_sources))
 
         # 6. Stream generation
         gen_span = trace.start_observation(
