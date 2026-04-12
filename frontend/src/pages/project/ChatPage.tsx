@@ -49,11 +49,13 @@ const preprocessMarkdown = (content: string): string => {
     /\(\s*((?:[^()]*(?:\\[a-zA-Z]+|[_^])[^()]*)+)\s*\)/g,
     (_m, inner) => `$${inner.trim()}$`,
   );
+  // Convert citation markers [N] into links so they render as styled badges
+  result = result.replaceAll(/\[(\d+)\]/g, '[$1](#cite-$1)');
   return result;
 };
 
-// Render markdown content (module-level to avoid re-creation on each render)
-const renderMarkdown = (content: string) => (
+// Render markdown content
+const renderMarkdown = (content: string, citations?: CitedSource[] | null) => (
   <ReactMarkdown
     remarkPlugins={[remarkGfm, remarkMath]}
     rehypePlugins={[rehypeKatex]}
@@ -98,9 +100,24 @@ const renderMarkdown = (content: string) => (
       blockquote: ({ children }) => (
         <blockquote className="my-4 border-l-2 border-zinc-600 pl-4 text-zinc-400 italic">{children}</blockquote>
       ),
-      a: ({ href, children }) => (
-        <a href={href} target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:text-indigo-300 underline underline-offset-2">{children}</a>
-      ),
+      a: ({ href, children }) => {
+        if (href?.startsWith('#cite-')) {
+          const citeNum = parseInt(href.replace('#cite-', ''), 10);
+          const source = citations?.find(s => s.index === citeNum);
+          const tooltip = source?.title || `Source ${citeNum}`;
+          return (
+            <span className="relative group/cite inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 mx-0.5 text-[11px] font-semibold text-indigo-300 bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 rounded cursor-default align-top leading-none transition-colors">
+              {children}
+              <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 text-xs text-white bg-zinc-800 border border-[#212c43] rounded-lg shadow-xl whitespace-normal max-w-[280px] w-max opacity-0 invisible group-hover/cite:opacity-100 group-hover/cite:visible transition-all duration-150 pointer-events-none z-50 leading-snug text-center font-normal">
+                {tooltip}
+              </span>
+            </span>
+          );
+        }
+        return (
+          <a href={href} target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:text-indigo-300 underline underline-offset-2">{children}</a>
+        );
+      },
       hr: () => <hr className="my-6 border-[#212c43]" />,
       table: ({ children }) => (
         <div className="my-4 overflow-x-auto rounded-lg border border-[#212c43]">
@@ -639,18 +656,18 @@ export default function ChatPage() {
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="text-base leading-relaxed text-zinc-200">
-                              {renderMarkdown(msg.content)}
+                              {renderMarkdown(msg.content, msg.cited_sources)}
                             </div>
                             {msg.cited_sources && msg.cited_sources.length > 0 && (() => {
                               const unique = deduplicateCitations(msg.cited_sources);
                               return (
                                 <button
                                   onClick={() => handleShowCitations(msg.cited_sources!)}
-                                  className="flex items-center gap-1.5 mt-2 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                                  className="flex items-center gap-2 mt-3 px-3 py-2 text-sm text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/15 border border-indigo-500/20 rounded-xl transition-colors"
                                 >
-                                  <BookOpen size={12} />
-                                  {unique.length === 1 ? '1 source' : `${unique.length} sources`}
-                                  <ChevronRight size={12} />
+                                  <BookOpen size={14} />
+                                  <span className="font-medium">{unique.length === 1 ? '1 source cited' : `${unique.length} sources cited`}</span>
+                                  <ChevronRight size={14} />
                                 </button>
                               );
                             })()}
@@ -668,18 +685,18 @@ export default function ChatPage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="text-base leading-relaxed text-zinc-200 streaming-cursor">
-                          {renderMarkdown(streamingContent)}
+                          {renderMarkdown(streamingContent, streamingCitations)}
                         </div>
                         {streamingCitations.length > 0 && (() => {
                           const unique = deduplicateCitations(streamingCitations);
                           return (
                             <button
                               onClick={() => handleShowCitations(streamingCitations)}
-                              className="flex items-center gap-1.5 mt-2 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                              className="flex items-center gap-2 mt-3 px-3 py-2 text-sm text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/15 border border-indigo-500/20 rounded-xl transition-colors"
                             >
-                              <BookOpen size={12} />
-                              {unique.length === 1 ? '1 source' : `${unique.length} sources`}
-                              <ChevronRight size={12} />
+                              <BookOpen size={14} />
+                              <span className="font-medium">{unique.length === 1 ? '1 source cited' : `${unique.length} sources cited`}</span>
+                              <ChevronRight size={14} />
                             </button>
                           );
                         })()}
