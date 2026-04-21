@@ -24,12 +24,20 @@ def _parse_grade_response(raw: object) -> list:
 
 
 def _filter_relevant_chunks(grades: list, chunks: list) -> list:
-    """Return chunks whose grade entry marks them as relevant."""
+    """Return chunks whose grade entry marks them as relevant, always preserving diversity-fill chunks."""
     graded_chunks = []
+    graded_indices: set[int] = set()
     for grade in grades:
         idx = grade.get("index", -1)
-        if grade.get("relevant", False) and 0 <= idx < len(chunks):
-            graded_chunks.append(chunks[idx])
+        if 0 <= idx < len(chunks):
+            graded_indices.add(idx)
+            chunk = chunks[idx]
+            if grade.get("relevant", False) or chunk.get("_is_diversity_fill", False):
+                graded_chunks.append(chunk)
+    # Preserve any fill chunks the LLM omitted from its grading response
+    for idx, chunk in enumerate(chunks):
+        if idx not in graded_indices and chunk.get("_is_diversity_fill", False):
+            graded_chunks.append(chunk)
     if not graded_chunks and chunks:
         logger.warning("Grade docs returned no relevant chunks — keeping all")
         return chunks

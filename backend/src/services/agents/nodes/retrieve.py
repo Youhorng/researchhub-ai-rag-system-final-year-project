@@ -78,14 +78,16 @@ def _aggregate_project_sources(
         except Exception:
             logger.warning("Failed to aggregate paper sources")
 
-    # Document sources — filter by project_id, exclude paper chunks
+    # Document sources — filter by project_id, exclude paper chunks.
+    # Must use regexp instead of exists because document chunks carry paper_id: ""
+    # (empty string), and the exists query returns true for empty strings.
     if project_id:
         agg_query = {
             "size": 0,
             "query": {
                 "bool": {
                     "filter": [{"term": {"project_id": project_id}}],
-                    "must_not": [{"exists": {"field": "paper_id"}}],
+                    "must_not": [{"regexp": {"paper_id": ".+"}}],
                 }
             },
             "aggs": {"documents": {"terms": {"field": "document_id", "size": 50}}},
@@ -143,6 +145,7 @@ def _fetch_extra_chunks(
             for hit in resp.get("hits", {}).get("hits", []):
                 src = hit["_source"]
                 src["_score"] = hit.get("_score", 0.0)
+                src["_is_diversity_fill"] = True
                 extra_chunks.append(src)
         except Exception:
             logger.warning("Failed to fill chunk for %s=%s", field, source_id)

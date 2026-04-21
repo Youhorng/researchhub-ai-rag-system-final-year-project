@@ -139,7 +139,8 @@ const renderMarkdown = (content: string, citations?: CitedSource[] | null) => (
 function processSSELine(
   line: string,
   onChunk: (content: string) => void,
-  onCitations: (sources: CitedSource[]) => void
+  onCitations: (sources: CitedSource[]) => void,
+  onReplace: (content: string) => void,
 ): void {
   if (!line.startsWith('data: ')) return;
   const jsonStr = line.slice(6).trim();
@@ -147,6 +148,7 @@ function processSSELine(
   try {
     const event = JSON.parse(jsonStr) as { type: string; content?: string; sources?: CitedSource[]; message?: string };
     if (event.type === 'chunk') onChunk(event.content ?? '');
+    else if (event.type === 'replace') onReplace(event.content ?? '');
     else if (event.type === 'citations') onCitations(event.sources ?? []);
     else if (event.type === 'error') { console.error('SSE error:', event.message); onChunk(`\n\n*Error: ${event.message}*`); }
   } catch { /* ignore parse errors */ }
@@ -171,8 +173,12 @@ export default function ChatPage() {
   // Input state
   const [inputValue, setInputValue] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
+  const [streamingForSessionId, setStreamingForSessionId] = useState<string | null>(null);
   const [streamingContent, setStreamingContent] = useState('');
   const [streamingCitations, setStreamingCitations] = useState<CitedSource[]>([]);
+
+  // True only when the *active* session is the one currently being streamed
+  const isStreamingThisSession = isStreaming && streamingForSessionId === activeSessionId;
 
   // Session delete state
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
@@ -227,6 +233,7 @@ export default function ChatPage() {
 
   // Track sessions created inline (first message) to skip re-fetching over optimistic messages
   const inlineCreatedSessionRef = useRef<string | null>(null);
+
 
   // Fetch messages when session changes
   useEffect(() => {
@@ -335,7 +342,8 @@ export default function ChatPage() {
         processSSELine(
           line,
           (content) => { fullContent += content; setStreamingContent(fullContent); },
-          (sources) => { citations = sources; setStreamingCitations(sources); }
+          (sources) => { citations = sources; setStreamingCitations(sources); },
+          (replacement) => { fullContent = replacement; setStreamingContent(replacement); },
         );
       }
     }
@@ -358,6 +366,7 @@ export default function ChatPage() {
     setInputValue('');
     setChatError(null);
     setIsStreaming(true);
+    setStreamingForSessionId(sessionId);
     setStreamingContent('');
     setStreamingCitations([]);
 
@@ -424,6 +433,7 @@ export default function ChatPage() {
       setStreamingContent('');
     } finally {
       setIsStreaming(false);
+      setStreamingForSessionId(null);
       inputRef.current?.focus();
     }
   };
@@ -608,7 +618,7 @@ export default function ChatPage() {
           {/* Messages area */}
           <div className="flex-1 flex flex-col min-w-0">
             <div className="flex-1 overflow-y-auto scrollbar-hide">
-              {messages.length === 0 && !isStreaming && !isLoadingMessages ? (
+              {messages.length === 0 && !isStreamingThisSession && !isLoadingMessages ? (
                 /* Welcome state */
                 <div className="flex flex-col items-center justify-center min-h-full py-12 px-4 text-center animate-in fade-in duration-500">
                   <div className="p-4 bg-primary/10 rounded-2xl mb-5 border border-primary/20 shadow-[0_0_32px_-8px_rgba(167,165,255,0.2)]">
@@ -678,7 +688,7 @@ export default function ChatPage() {
                   )}
 
                   {/* Streaming message */}
-                  {isStreaming && streamingContent && (
+                  {isStreamingThisSession && streamingContent && (
                     <div className="flex gap-3">
                       <div className="w-7 h-7 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0 mt-0.5">
                         <Sparkles size={13} className="text-primary animate-pulse" />
@@ -705,7 +715,7 @@ export default function ChatPage() {
                   )}
 
                   {/* Thinking indicator — before first chunk arrives */}
-                  {isStreaming && !streamingContent && (
+                  {isStreamingThisSession && !streamingContent && (
                     <div className="flex gap-3">
                       <div className="w-7 h-7 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0">
                         <Sparkles size={13} className="text-primary animate-pulse" />
@@ -746,7 +756,7 @@ export default function ChatPage() {
                       className="flex-1 bg-transparent text-white placeholder-zinc-500 focus:outline-none text-sm leading-5 resize-none overflow-y-auto self-center"
                       style={{ minHeight: '20px', maxHeight: '160px' }}
                     />
-                    {isStreaming ? (
+                    {isStreamingThisSession ? (
                       <button
                         type="button"
                         onClick={handleStopStreaming}

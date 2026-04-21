@@ -22,7 +22,18 @@ def build_chunk_search_query(
     if paper_ids:
         should_clauses.append({"terms": {"paper_id": paper_ids}})
     if project_id:
-        should_clauses.append({"term": {"project_id": project_id}})
+        # Only match uploaded-document chunks (no paper_id field) scoped to this project.
+        # Paper chunks also carry project_id, but must be filtered by paper_id only
+        # to avoid returning chunks from rejected papers.
+        # Match uploaded-document chunks: project-scoped and paper_id is absent or empty.
+        # Must use regexp instead of exists because document chunks carry paper_id: ""
+        # (empty string), and the exists query returns true for empty strings.
+        should_clauses.append({
+            "bool": {
+                "filter": [{"term": {"project_id": project_id}}],
+                "must_not": [{"regexp": {"paper_id": ".+"}}],
+            }
+        })
 
     filter_clause = (
         [{"bool": {"should": should_clauses, "minimum_should_match": 1}}]

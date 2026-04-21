@@ -85,6 +85,60 @@ def _build_conversational_messages(history: list, user_query: str) -> list[dict]
     return messages
 
 
+def _ensure_all_kb_sources(
+    db: Session,
+    project_id: uuid.UUID | None,
+    grouped_sources: list[dict],
+) -> list[dict]:
+    """Pad grouped_sources with any accepted papers/documents not yet covered.
+
+    Guarantees every KB item has a numbered [N] marker in the system prompt,
+    even if retrieval + grading didn't return chunks for it.
+    """
+    if not project_id:
+        return grouped_sources
+
+    covered = set()
+    for src in grouped_sources:
+        if src.get("paper_id"):
+            covered.add(str(src["paper_id"]))
+        if src.get("document_id"):
+            covered.add(str(src["document_id"]))
+
+    accepted = (
+        db.query(ProjectPaper)
+        .filter(ProjectPaper.project_id == project_id, ProjectPaper.status == "accepted")
+        .all()
+    )
+    for pp in accepted:
+        if pp.paper and str(pp.paper_id) not in covered:
+            grouped_sources.append({
+                "paper_id": str(pp.paper_id),
+                "document_id": None,
+                "arxiv_id": pp.paper.arxiv_id,
+                "title": pp.paper.title,
+                "excerpts": [],
+            })
+            covered.add(str(pp.paper_id))
+
+    docs = (
+        db.query(Document)
+        .filter(Document.project_id == project_id, Document.chunks_indexed.is_(True))
+        .all()
+    )
+    for doc in docs:
+        if str(doc.id) not in covered:
+            grouped_sources.append({
+                "paper_id": None,
+                "document_id": str(doc.id),
+                "arxiv_id": None,
+                "title": doc.title,
+                "excerpts": [],
+            })
+
+    return grouped_sources
+
+
 def _collect_kb_titles(db: Session, project_id: uuid.UUID | None) -> list[str]:
     """Collect titles of all accepted papers and indexed documents for a project."""
     if not project_id:
@@ -138,8 +192,12 @@ def _build_cited_sources(grouped_sources: list[dict], full_response: str) -> tup
     return cited_sources, renumbered_text
 
 
-async def _stream_openai(messages: list[dict], gen_span) -> tuple[str, int, int, int]:
-    """Stream OpenAI chat completion and yield chunks; return full response + token counts."""
+async def _stream_openai(messages: list[dict], gen_span, stats: dict):
+    """Async generator that yields raw content strings as they arrive from OpenAI.
+
+    Populates *stats* with full_response, input_tokens, output_tokens, gen_ms
+    after the stream ends so callers can access final metrics.
+    """
     client = openai.AsyncOpenAI(api_key=settings.openai_api_key)
     t0 = time.time()
     full_response = ""
@@ -155,7 +213,6 @@ async def _stream_openai(messages: list[dict], gen_span) -> tuple[str, int, int,
         stream_options={"include_usage": True},
     )
 
-    chunks_yielded = []
     async for event in stream:
         if event.usage:
             input_tokens = event.usage.prompt_tokens
@@ -165,7 +222,7 @@ async def _stream_openai(messages: list[dict], gen_span) -> tuple[str, int, int,
         delta = event.choices[0].delta
         if delta.content:
             full_response += delta.content
-            chunks_yielded.append(_sse("chunk", {"content": delta.content}))
+            yield delta.content
 
     gen_ms = round((time.time() - t0) * 1000)
     gen_span.update(
@@ -174,7 +231,10 @@ async def _stream_openai(messages: list[dict], gen_span) -> tuple[str, int, int,
         metadata={"latency_ms": gen_ms},
     )
     gen_span.end()
-    return full_response, input_tokens, output_tokens, gen_ms, chunks_yielded
+    stats["full_response"] = full_response
+    stats["input_tokens"] = input_tokens
+    stats["output_tokens"] = output_tokens
+    stats["gen_ms"] = gen_ms
 
 
 async def run_rag_pipeline(
@@ -248,16 +308,18 @@ async def run_rag_pipeline(
                 model=settings.openai_chat_model,
                 input=messages,
             )
-            full_response, input_tokens, output_tokens, gen_ms, _ = await _stream_openai(messages, gen_span)
-            yield _sse("chunk", {"content": full_response})
+            stats: dict = {}
+            async for content in _stream_openai(messages, gen_span, stats):
+                yield _sse("chunk", {"content": content})
             yield _sse("done", {})
+            full_response = stats.get("full_response", "")
             chat_repo.add_message(
                 db, session_id, "assistant", full_response, [],
                 {
                     "model": settings.openai_chat_model,
-                    "latency_ms": gen_ms,
-                    "input_tokens": input_tokens,
-                    "output_tokens": output_tokens,
+                    "latency_ms": stats.get("gen_ms", 0),
+                    "input_tokens": stats.get("input_tokens", 0),
+                    "output_tokens": stats.get("output_tokens", 0),
                     "conversational": True,
                     "node_timings": result.get("node_timings", {}),
                 },
@@ -270,24 +332,34 @@ async def run_rag_pipeline(
         chunks = result.get("graded_chunks", [])
         grouped_sources = group_chunks_by_source(chunks)
         grouped_sources = merge_duplicate_sources(grouped_sources)
+        grouped_sources = _ensure_all_kb_sources(db, project_id, grouped_sources)
         paper_titles = _collect_kb_titles(db, project_id)
         system_message = build_system_message(chunks, grouped_sources=grouped_sources, paper_titles=paper_titles)
         messages = _build_chat_messages(system_message, history, user_query, num_sources=len(grouped_sources))
 
-        # 6. Stream generation
+        # 6. Stream generation — yield chunks to frontend as they arrive
         gen_span = trace.start_observation(
             name="generate",
             as_type="generation",
             model=settings.openai_chat_model,
             input=messages,
         )
-        full_response, input_tokens, output_tokens, gen_ms, _ = await _stream_openai(messages, gen_span)
+        rag_stats: dict = {}
+        async for content in _stream_openai(messages, gen_span, rag_stats):
+            yield _sse("chunk", {"content": content})
 
-        # 7. Renumber citations before sending to frontend so text and panel indices match
+        full_response = rag_stats.get("full_response", "")
+        input_tokens = rag_stats.get("input_tokens", 0)
+        output_tokens = rag_stats.get("output_tokens", 0)
+        gen_ms = rag_stats.get("gen_ms", 0)
+
+        # 7. Renumber citations so text markers match the citation panel indices
         cited_sources, renumbered_text = _build_cited_sources(grouped_sources, full_response)
 
-        # 8. Yield renumbered text + citations + done
-        yield _sse("chunk", {"content": renumbered_text})
+        # 8. If renumbering changed the text, push a replace event so the frontend
+        #    corrects the streamed content before showing the final citations panel.
+        if renumbered_text != full_response:
+            yield _sse("replace", {"content": renumbered_text})
         if cited_sources:
             yield _sse("citations", {"sources": cited_sources})
         yield _sse("done", {})
