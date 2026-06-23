@@ -22,7 +22,7 @@ opensearch-py>=2.4.0
 
 # Pydantic (for data validation in DAGs)
 pydantic>=2.0.0
-pydantic-settings>=2.0.0
+pydantic-settings>=2.14.2
 
 # LLM / RAG stack (for embedding DAGs)
 langchain>=0.2.0
